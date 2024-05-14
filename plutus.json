@@ -1,0 +1,163 @@
+{
+  "preamble": {
+    "title": "aiken-lang/options-trading-cardano",
+    "description": "Aiken contracts for project 'aiken-lang/options-trading-cardano'",
+    "version": "0.0.0",
+    "plutusVersion": "v2",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.0.25-alpha+4e8042f"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "call_option.spend",
+      "datum": {
+        "title": "datum",
+        "schema": {
+          "$ref": "#/definitions/types~1OptionDatum"
+        }
+      },
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/call_option~1Redeemer"
+        }
+      },
+      "compiledCode": "5904cf010000323232323232322323223232253330083253330093007300a3754600260166ea80144c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c94ccc06cc058c070dd5000899299980e180d180e9baa0011323232325333020301e302137540022646464a6660460162a6660460022a6660460142a66604600c2a666046006200429405280a5014a02940cdc4192999811980f18121baa0011375a6050604a6ea800458c068c090dd5180d18121baa3027302830283028302830283028302830243754603460486ea806cdd698139814181418141814181418121baa0213370e00a602e6eacc054c08cdd5181318119baa002301b300c002163300900148000cc040dd6180698101baa30163020375402e46024602e60426ea8c05cc084dd5000980c1804998079bac3015301f3754602a603e6ea80588c044c058c080dd5180b18101baa30123020375400260246eacc040c078dd51808180f1baa3021301e37540022c664466024004466ebcc058c080dd50008011bac3013301d37546026603a6ea8050c080c074dd50008b1807180e1baa01353330193371066e08dd69803980d9baa018375a603c603e603e603e603e603e603e60366ea8060cc024dd61804180d9baa3011301b375402460146eb8c044c06cdd500c0a511337109040497a0080119b87001375a600c60346ea805ccc01cdd61803180c9baa300f3019375402060106eb8c070c074c074c074c064dd500b1800800911299980d8010a6103d87a800013232533301a3018003130113301e0024bd70099980280280099b8000348004c07c00cc074008c004004894ccc06000452000133700900119801001180d8009180c180c980c980c980c8009180b980c180c000911929998099808980a1baa001130093756600e602a6ea8c060c054dd50008b19803801119baf300b301537540020044600e66028600e660286ea40052f5c06602898103d87a80004bd7011191980080080191299980a8008a5eb804c8c94ccc050c0140084cc060008cc0100100044cc010010004c064008c05c00494ccc038c024c03cdd50008a5114a046024602600244646600200200644a6660240022980103d87a8000132325333011300500213008330150024bd70099802002000980b001180a0009192999806180398069baa0011480004dd6980898071baa00132533300c3007300d37540022980103d87a80001323300100137566024601e6ea8008894ccc044004530103d87a8000132323253330113371e91100375c6024006260106602a6ea00052f5c026600a00a0046eb4c048008c054008c04c004c8cc004004008894ccc0400045300103d87a8000132323253330103371e91100375c60220062600e660286e980052f5c026600a00a0046eacc044008c050008c048004dd2a400029448c03800452613656533300630043007375400426464a666016601c0042649319299980498038008a99980618059baa00214985854ccc024c01000454ccc030c02cdd50010a4c2c2c60126ea800458c030004c020dd50010b1b87480094ccc00cc004c010dd500109919191919191919191919191919299980a180b8010a4c2c6eb4c054004c054008dd6980980098098011bad30110013011002375c601e002601e0046eb4c034004c034008dd6980580098058011bae3009001300537540042c6e1d20005734aae7555cf2ab9f5740ae855d101",
+      "hash": "a4f3eb257338f869a32ba34062c3d3be8faa10084a2a5a96b02f31d5"
+    },
+    {
+      "title": "put_option.spend",
+      "datum": {
+        "title": "_datum",
+        "schema": {
+          "$ref": "#/definitions/types~1OptionDatum"
+        }
+      },
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/put_option~1Redeemer"
+        }
+      },
+      "compiledCode": "58f201000032323232323223232232253330075333007300530083754601660126ea800c5288a5114984d9594ccc014c00cc018dd5000899192999805180600109924c64a666010600c0022a66601660146ea800852616153330083370e90010008a99980598051baa00214985858c020dd50008b180500098039baa00116533300330013004375400426464646464646464646464646464a666028602c0042930b1bad30140013014002375a602400260240046eb4c040004c040008dd7180700098070011bad300c001300c002375a601400260140046eb8c020004c014dd50010b1b87480015cd2ab9d5573caae7d5d0aba21",
+      "hash": "731397f325fae2b3abf1367c919c0b5310c00cc39a26c2bb637ce14c"
+    }
+  ],
+  "definitions": {
+    "ByteArray": {
+      "dataType": "bytes"
+    },
+    "Int": {
+      "dataType": "integer"
+    },
+    "call_option/LoanRedeemer": {
+      "title": "LoanRedeemer",
+      "anyOf": [
+        {
+          "title": "SellOption",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": []
+        },
+        {
+          "title": "RealizeOption",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        }
+      ]
+    },
+    "call_option/Redeemer": {
+      "title": "Redeemer",
+      "anyOf": [
+        {
+          "title": "Redeemer",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "action",
+              "$ref": "#/definitions/call_option~1LoanRedeemer"
+            }
+          ]
+        }
+      ]
+    },
+    "put_option/LoanRedeemer": {
+      "title": "LoanRedeemer",
+      "anyOf": [
+        {
+          "title": "SellOption",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": []
+        },
+        {
+          "title": "RealizeOption",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        }
+      ]
+    },
+    "put_option/Redeemer": {
+      "title": "Redeemer",
+      "anyOf": [
+        {
+          "title": "Redeemer",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "action",
+              "$ref": "#/definitions/put_option~1LoanRedeemer"
+            }
+          ]
+        }
+      ]
+    },
+    "types/OptionDatum": {
+      "title": "OptionDatum",
+      "anyOf": [
+        {
+          "title": "OptionDatum",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "issuer_address_hash",
+              "$ref": "#/definitions/ByteArray"
+            },
+            {
+              "title": "lovelace_amount",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "usdm_amount",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "current_owner_address_hash",
+              "$ref": "#/definitions/ByteArray"
+            },
+            {
+              "title": "sell_lovelace_amount",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "deadline",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "sell_percent",
+              "$ref": "#/definitions/Int"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
