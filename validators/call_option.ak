@@ -70,12 +70,12 @@ fn realize_option_valid() {
   True
 }
 
-validator(collateral_validator_hash: ByteArray) {
+validator {
   fn spend(datum: OptionDatum, redeemer: Redeemer, ctx: ScriptContext) -> Bool {
     when redeemer.action is {
       SellOption -> sell_option_valid(datum, ctx)
 
-      RealizeOption -> False
+      RealizeOption -> realize_option_valid()
     }
   }
 }
