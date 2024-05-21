@@ -38,7 +38,7 @@ fn sell_option_valid(datum: OptionDatum, ctx: ScriptContext) {
   let amount_to_issuer_valid: Bool =
     amount_to_issuer > datum.sell_lovelace_amount * datum.commission || amount_to_issuer > datum.sell_lovelace_amount * datum.commission && amount_to_current_owner == 2000000
 
-  let is_for_sale = datum.sell_lovelace_amount > 0
+  let is_for_sale: Bool = datum.sell_lovelace_amount > 0
 
   expect Spend(my_output_reference) = ctx.purpose
 
