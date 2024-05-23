@@ -1,7 +1,7 @@
 use aiken/list
 use aiken/transaction.{InlineDatum, Input, Output, ScriptContext, Spend}
 use aiken/transaction/credential.{Address, from_verification_key}
-use aiken/transaction/value.{Value, from_asset, lovelace_of}
+use aiken/transaction/value.{Value, from_asset, quantity_of}
 use types.{LovelaceAmount, OptionDatum}
 use utils.{get_lovelace_to_address}
 
@@ -22,51 +22,80 @@ type Redeemer {
 // least ada per sell to issuer is 2 ada
 // sale price cannot be 0 
 fn sell_option_valid(datum: OptionDatum, ctx: ScriptContext) {
+  let is_for_sale: Bool = datum.sell_lovelace_amount > 0
+
   let current_owner_address: Address =
     from_verification_key(datum.current_owner_address_hash)
   let amount_to_current_owner: LovelaceAmount =
     get_lovelace_to_address(ctx.transaction.outputs, current_owner_address)
-
   let amount_to_current_owner_valid: Bool =
     amount_to_current_owner == datum.sell_lovelace_amount
 
   let issuer_address: Address = from_verification_key(datum.issuer_address_hash)
-
   let amount_to_issuer: LovelaceAmount =
     get_lovelace_to_address(ctx.transaction.outputs, issuer_address)
-
   let amount_to_issuer_valid: Bool =
     amount_to_issuer > datum.sell_lovelace_amount * datum.commission || amount_to_issuer > datum.sell_lovelace_amount * datum.commission && amount_to_current_owner == 2000000
 
-  let is_for_sale: Bool = datum.sell_lovelace_amount > 0
-
   expect Spend(my_output_reference) = ctx.purpose
-
   expect Some(input_from_validator) =
     ctx.transaction.inputs
       |> transaction.find_input(my_output_reference)
-
-  let lovelace_amount_locked: Int =
-    lovelace_of(input_from_validator.output.value)
-
   let only_one_validator_input: Bool =
     list.length(utils.get_validators_inputs(ctx)) == 1
 
   let outputs_to_validator: List<Output> = utils.get_validators_outputs(ctx)
-
   expect Some(output_to_validator) = list.at(outputs_to_validator, 0)
-
-  let lovelace_amount_send_back: Int = lovelace_of(output_to_validator.value)
-
   let only_one_validtaor_output: Bool = list.length(outputs_to_validator) == 1
 
-  let lovelace_amount_same: Bool =
-    lovelace_amount_locked == lovelace_amount_send_back
+  let asset_locked: Int =
+    quantity_of(
+      input_from_validator.output.value,
+      datum.from_asset.policy_id,
+      datum.from_asset.asset_name,
+    )
+
+  let asset_send_back: Int =
+    quantity_of(
+      output_to_validator.value,
+      datum.from_asset.policy_id,
+      datum.from_asset.asset_name,
+    )
+
+  let lovelace_amount_same: Bool = asset_locked == asset_send_back
 
   let deadline_not_passed: Bool =
     datum.deadline > utils.get_lower_bound(ctx.transaction.validity_range)
 
-  is_for_sale && amount_to_current_owner_valid && deadline_not_passed && amount_to_issuer_valid && only_one_validator_input && only_one_validtaor_output && lovelace_amount_same
+  let input_datum_info =
+    OptionDatum {
+      issuer_address_hash: datum.issuer_address_hash,
+      issuer_bech32_address: datum.issuer_bech32_address,
+      current_owner_address_hash: "",
+      to_asset: datum.to_asset,
+      to_asset_amount: datum.to_asset_amount,
+      from_asset: datum.from_asset,
+      from_asset_amount: datum.from_asset_amount,
+      sell_lovelace_amount: 0,
+      commission: datum.commission,
+      deadline: datum.deadline,
+    }
+
+  let output_datum_info =
+    OptionDatum {
+      issuer_address_hash: datum.issuer_address_hash,
+      issuer_bech32_address: datum.issuer_bech32_address,
+      current_owner_address_hash: "",
+      to_asset: datum.to_asset,
+      to_asset_amount: datum.to_asset_amount,
+      from_asset: datum.from_asset,
+      from_asset_amount: datum.from_asset_amount,
+      sell_lovelace_amount: 0,
+      commission: datum.commission,
+      deadline: datum.deadline,
+    }
+
+  is_for_sale && amount_to_current_owner_valid && deadline_not_passed && amount_to_issuer_valid && only_one_validator_input && only_one_validtaor_output && lovelace_amount_same && input_datum_info == output_datum_info
 }
 
 // deadline not passed, original owner signed transaction
@@ -111,33 +140,35 @@ fn change_sell_price_valid(datum: OptionDatum, ctx: ScriptContext) {
   let only_one_validator_input: Bool =
     list.length(utils.get_validators_inputs(ctx)) == 1
 
-  let sell_lovelace_amount_same: Bool =
-    datum.sell_lovelace_amount == output_datum_typed.sell_lovelace_amount
+  let input_datum_info =
+    OptionDatum {
+      issuer_address_hash: datum.issuer_address_hash,
+      issuer_bech32_address: datum.issuer_bech32_address,
+      current_owner_address_hash: datum.current_owner_address_hash,
+      to_asset: datum.to_asset,
+      to_asset_amount: datum.to_asset_amount,
+      from_asset: datum.from_asset,
+      from_asset_amount: datum.from_asset_amount,
+      sell_lovelace_amount: 0,
+      commission: datum.commission,
+      deadline: datum.deadline,
+    }
 
-  let commission_same: Bool = datum.commission != output_datum_typed.commission
+  let output_datum_info =
+    OptionDatum {
+      issuer_address_hash: output_datum_typed.issuer_address_hash,
+      issuer_bech32_address: output_datum_typed.issuer_bech32_address,
+      current_owner_address_hash: output_datum_typed.current_owner_address_hash,
+      to_asset: output_datum_typed.to_asset,
+      to_asset_amount: output_datum_typed.to_asset_amount,
+      from_asset: output_datum_typed.from_asset,
+      from_asset_amount: output_datum_typed.from_asset_amount,
+      sell_lovelace_amount: 0,
+      deadline: output_datum_typed.deadline,
+      commission: output_datum_typed.commission,
+    }
 
-  let deadline_same: Bool = datum.deadline != output_datum_typed.deadline
-
-  let issuer_address_hash_same: Bool =
-    datum.issuer_address_hash != output_datum_typed.issuer_address_hash
-
-  let current_owner_address_hash_same: Bool =
-    datum.current_owner_address_hash != output_datum_typed.current_owner_address_hash
-
-  let original_owner_address_hash_same: Bool =
-    datum.issuer_address_hash != output_datum_typed.issuer_address_hash
-
-  let to_asset_same: Bool = datum.to_asset == output_datum_typed.to_asset
-
-  let to_asset_amount_same: Bool =
-    datum.to_asset_amount == output_datum_typed.to_asset_amount
-
-  let from_asset_same: Bool = datum.from_asset == output_datum_typed.from_asset
-
-  let from_asset_amount_same: Bool =
-    datum.from_asset_amount == output_datum_typed.from_asset_amount
-
-  only_one_validator_input && only_one_validtaor_output && sell_lovelace_amount_same && commission_same && deadline_same && issuer_address_hash_same && current_owner_address_hash_same && original_owner_address_hash_same && to_asset_same && to_asset_amount_same && from_asset_same && from_asset_amount_same
+  only_one_validator_input && only_one_validtaor_output && input_datum_info == output_datum_info
 }
 
 fn original_owner_get_back_valid(datum: OptionDatum, ctx: ScriptContext) {
