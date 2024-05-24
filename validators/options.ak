@@ -9,7 +9,7 @@ type LoanRedeemer {
   SellOption
   ChangeSellPrice
   RealizeOption
-  OriginalOwnerGetBack
+  IssuerGetBackAsset
 }
 
 type Redeemer {
@@ -180,10 +180,14 @@ fn change_sell_price_valid(datum: OptionDatum, ctx: ScriptContext) {
   must_be_signed_by_owner && deadline_not_passed && only_one_validator_input && only_one_validtaor_output && input_datum_info == output_datum_info
 }
 
-fn original_owner_get_back_valid(datum: OptionDatum, ctx: ScriptContext) {
+fn issuer_get_back_asset_valid(datum: OptionDatum, ctx: ScriptContext) {
   let must_be_signed_by_owner =
     list.has(ctx.transaction.extra_signatories, datum.issuer_address_hash)
-  must_be_signed_by_owner
+
+  let deadline_passed: Bool =
+    utils.get_lower_bound(ctx.transaction.validity_range) > datum.deadline
+
+  must_be_signed_by_owner && deadline_passed
 }
 
 validator {
@@ -195,7 +199,7 @@ validator {
 
       RealizeOption -> realize_option_valid(datum, ctx)
 
-      OriginalOwnerGetBack -> original_owner_get_back_valid(datum, ctx)
+      IssuerGetBackAsset -> issuer_get_back_asset_valid(datum, ctx)
     }
   }
 }
