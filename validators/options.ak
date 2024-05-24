@@ -126,7 +126,10 @@ fn realize_option_valid(datum: OptionDatum, ctx: ScriptContext) {
 
   let to_asset_amount_same: Bool = output_to_address.value == expected_to_value
 
-  deadline_not_passed && only_one_validator_input && only_one_validtaor_output && to_asset_amount_same
+  let must_be_signed_by_owner =
+    list.has(ctx.transaction.extra_signatories, datum.issuer_address_hash)
+
+  must_be_signed_by_owner && deadline_not_passed && only_one_validator_input && only_one_validtaor_output && to_asset_amount_same
 }
 
 // only sale price changed 
@@ -168,13 +171,19 @@ fn change_sell_price_valid(datum: OptionDatum, ctx: ScriptContext) {
       commission: output_datum_typed.commission,
     }
 
-  only_one_validator_input && only_one_validtaor_output && input_datum_info == output_datum_info
+  let deadline_not_passed: Bool =
+    utils.get_lower_bound(ctx.transaction.validity_range) < datum.deadline
+
+  let must_be_signed_by_owner =
+    list.has(ctx.transaction.extra_signatories, datum.issuer_address_hash)
+
+  must_be_signed_by_owner && deadline_not_passed && only_one_validator_input && only_one_validtaor_output && input_datum_info == output_datum_info
 }
 
 fn original_owner_get_back_valid(datum: OptionDatum, ctx: ScriptContext) {
-  let must_be_signed_by_lender =
+  let must_be_signed_by_owner =
     list.has(ctx.transaction.extra_signatories, datum.issuer_address_hash)
-  must_be_signed_by_lender
+  must_be_signed_by_owner
 }
 
 validator {
