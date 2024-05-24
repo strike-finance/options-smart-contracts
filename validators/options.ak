@@ -8,7 +8,7 @@ use utils.{get_lovelace_to_address}
 type LoanRedeemer {
   SellOption
   ChangeSellPrice
-  RealizeOption
+  ExerciseOption
   IssuerGetBackAsset
 }
 
@@ -100,7 +100,7 @@ fn sell_option_valid(datum: OptionDatum, ctx: ScriptContext) {
 
 // deadline not passed, original owner signed transaction
 // tokens are being sent to be owner
-fn realize_option_valid(datum: OptionDatum, ctx: ScriptContext) {
+fn exercise_option_valid(datum: OptionDatum, ctx: ScriptContext) {
   let deadline_not_passed: Bool =
     utils.get_lower_bound(ctx.transaction.validity_range) < datum.deadline
 
@@ -197,7 +197,7 @@ validator {
 
       ChangeSellPrice -> change_sell_price_valid(datum, ctx)
 
-      RealizeOption -> realize_option_valid(datum, ctx)
+      ExerciseOption -> exercise_option_valid(datum, ctx)
 
       IssuerGetBackAsset -> issuer_get_back_asset_valid(datum, ctx)
     }
