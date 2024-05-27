@@ -8,7 +8,7 @@ use utils.{get_lovelace_to_address}
 type LoanRedeemer {
   SellOption
   ChangeSellPrice
-  RealizeOption
+  ExerciseOption
   IssuerGetBackAsset
 }
 
@@ -75,7 +75,6 @@ fn sell_option_valid(datum: OptionDatum, ctx: ScriptContext) {
       to_asset: datum.to_asset,
       to_asset_amount: datum.to_asset_amount,
       from_asset: datum.from_asset,
-      from_asset_amount: datum.from_asset_amount,
       sell_lovelace_amount: 0,
       commission: datum.commission,
       deadline: datum.deadline,
@@ -89,7 +88,6 @@ fn sell_option_valid(datum: OptionDatum, ctx: ScriptContext) {
       to_asset: datum.to_asset,
       to_asset_amount: datum.to_asset_amount,
       from_asset: datum.from_asset,
-      from_asset_amount: datum.from_asset_amount,
       sell_lovelace_amount: 0,
       commission: datum.commission,
       deadline: datum.deadline,
@@ -100,7 +98,7 @@ fn sell_option_valid(datum: OptionDatum, ctx: ScriptContext) {
 
 // deadline not passed, original owner signed transaction
 // tokens are being sent to be owner
-fn realize_option_valid(datum: OptionDatum, ctx: ScriptContext) {
+fn exercise_option_valid(datum: OptionDatum, ctx: ScriptContext) {
   let deadline_not_passed: Bool =
     utils.get_lower_bound(ctx.transaction.validity_range) < datum.deadline
 
@@ -151,7 +149,6 @@ fn change_sell_price_valid(datum: OptionDatum, ctx: ScriptContext) {
       to_asset: datum.to_asset,
       to_asset_amount: datum.to_asset_amount,
       from_asset: datum.from_asset,
-      from_asset_amount: datum.from_asset_amount,
       sell_lovelace_amount: 0,
       commission: datum.commission,
       deadline: datum.deadline,
@@ -165,7 +162,6 @@ fn change_sell_price_valid(datum: OptionDatum, ctx: ScriptContext) {
       to_asset: output_datum_typed.to_asset,
       to_asset_amount: output_datum_typed.to_asset_amount,
       from_asset: output_datum_typed.from_asset,
-      from_asset_amount: output_datum_typed.from_asset_amount,
       sell_lovelace_amount: 0,
       deadline: output_datum_typed.deadline,
       commission: output_datum_typed.commission,
@@ -197,7 +193,7 @@ validator {
 
       ChangeSellPrice -> change_sell_price_valid(datum, ctx)
 
-      RealizeOption -> realize_option_valid(datum, ctx)
+      ExerciseOption -> exercise_option_valid(datum, ctx)
 
       IssuerGetBackAsset -> issuer_get_back_asset_valid(datum, ctx)
     }
