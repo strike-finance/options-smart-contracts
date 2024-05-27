@@ -35,7 +35,7 @@ fn sell_option_valid(datum: OptionDatum, ctx: ScriptContext) {
   let amount_to_issuer: LovelaceAmount =
     get_lovelace_to_address(ctx.transaction.outputs, issuer_address)
   let amount_to_issuer_valid: Bool =
-    amount_to_issuer > datum.sell_lovelace_amount * datum.commission || amount_to_issuer > datum.sell_lovelace_amount * datum.commission && amount_to_current_owner == 2000000
+    amount_to_issuer > datum.sell_lovelace_amount * datum.commission / 100 || amount_to_issuer > datum.sell_lovelace_amount * datum.commission / 100 && amount_to_current_owner == 2000000
 
   expect Spend(my_output_reference) = ctx.purpose
   expect Some(input_from_validator) =
