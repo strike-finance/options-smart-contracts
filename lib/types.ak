@@ -22,7 +22,6 @@ pub type OptionDatum {
   current_owner_address_hash: AddressHash,
   sell_lovelace_amount: Int,
   from_asset: AssetClass,
-  from_asset_amount: Int,
   to_asset: AssetClass,
   to_asset_amount: Int,
   deadline: Int,
