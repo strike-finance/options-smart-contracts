@@ -6,8 +6,12 @@ use aiken/transaction/value.{lovelace_of}
 
 pub fn get_lovelace_to_address(outputs: List<Output>, address: Address) -> Int {
   expect Some(outputs_to_address) =
-    list.find(outputs, fn(output) { output.address == address })
-  // Should trace some error since hard to find issue
+    list.find(
+      outputs,
+      fn(output) {
+        output.address.payment_credential == address.payment_credential
+      },
+    )
   lovelace_of(outputs_to_address.value)
 }
 

@@ -18,8 +18,9 @@ pub type LovelaceAmount =
 
 pub type OptionDatum {
   issuer_address_hash: AddressHash,
-  issuer_bech32_address: String,
+  issuer_bech32_address: ByteArray,
   current_owner_address_hash: AddressHash,
+  current_owner_bech32_address: ByteArray,
   sell_lovelace_amount: Int,
   from_asset: AssetClass,
   to_asset: AssetClass,
