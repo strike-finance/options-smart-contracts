@@ -103,9 +103,6 @@ fn exercise_option_valid(datum: OptionDatum, ctx: ScriptContext) {
   let deadline_not_passed: Bool =
     utils.get_lower_bound(ctx.transaction.validity_range) < datum.deadline
 
-  let outputs_to_validator: List<Output> = utils.get_validators_outputs(ctx)
-
-  let only_one_validtaor_output: Bool = list.length(outputs_to_validator) == 1
   let only_one_validator_input: Bool =
     list.length(utils.get_validators_inputs(ctx)) == 1
 
@@ -114,7 +111,12 @@ fn exercise_option_valid(datum: OptionDatum, ctx: ScriptContext) {
   let outputs: List<Output> = ctx.transaction.outputs
 
   expect Some(output_to_address) =
-    list.find(outputs, fn(output) { output.address == issuer_address })
+    list.find(
+      outputs,
+      fn(output) {
+        output.address.payment_credential == issuer_address.payment_credential
+      },
+    )
 
   let expected_to_value: Value =
     from_asset(
@@ -128,7 +130,7 @@ fn exercise_option_valid(datum: OptionDatum, ctx: ScriptContext) {
   let must_be_signed_by_owner =
     list.has(ctx.transaction.extra_signatories, datum.issuer_address_hash)
 
-  must_be_signed_by_owner && deadline_not_passed && only_one_validator_input && only_one_validtaor_output && to_asset_amount_same
+  must_be_signed_by_owner && deadline_not_passed && only_one_validator_input && to_asset_amount_same
 }
 
 // only sale price changed 
