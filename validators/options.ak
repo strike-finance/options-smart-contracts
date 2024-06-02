@@ -186,13 +186,16 @@ fn change_sell_price_valid(datum: OptionDatum, ctx: ScriptContext) {
 }
 
 fn issuer_get_back_asset_valid(datum: OptionDatum, ctx: ScriptContext) {
-  let must_be_signed_by_owner =
+  let must_be_signed_by_issuer =
     list.has(ctx.transaction.extra_signatories, datum.issuer_address_hash)
 
   let deadline_passed: Bool =
     utils.get_lower_bound(ctx.transaction.validity_range) > datum.deadline
 
-  must_be_signed_by_owner && deadline_passed
+  let issuer_is_current_owner =
+    datum.issuer_address_hash == datum.current_owner_address_hash
+
+  must_be_signed_by_issuer && ( deadline_passed || issuer_is_current_owner )
 }
 
 validator {
