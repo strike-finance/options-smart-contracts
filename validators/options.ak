@@ -51,15 +51,15 @@ fn buy_option_valid(datum: OptionDatum, ctx: ScriptContext) {
   let asset_locked: Int =
     quantity_of(
       input_from_validator.output.value,
-      datum.from_asset.policy_id,
-      datum.from_asset.asset_name,
+      datum.locked_asset.policy_id,
+      datum.locked_asset.asset_name,
     )
 
   let asset_send_back: Int =
     quantity_of(
       output_to_validator.value,
-      datum.from_asset.policy_id,
-      datum.from_asset.asset_name,
+      datum.locked_asset.policy_id,
+      datum.locked_asset.asset_name,
     )
 
   let lovelace_amount_same: Bool = asset_locked == asset_send_back
@@ -75,7 +75,7 @@ fn buy_option_valid(datum: OptionDatum, ctx: ScriptContext) {
       current_owner_bech32_address: "",
       to_asset: datum.to_asset,
       to_asset_amount: datum.to_asset_amount,
-      from_asset: datum.from_asset,
+      locked_asset: datum.locked_asset,
       sell_lovelace_amount: 0,
       commission: datum.commission,
       deadline: datum.deadline,
@@ -89,7 +89,7 @@ fn buy_option_valid(datum: OptionDatum, ctx: ScriptContext) {
       current_owner_bech32_address: "",
       to_asset: datum.to_asset,
       to_asset_amount: datum.to_asset_amount,
-      from_asset: datum.from_asset,
+      locked_asset: datum.locked_asset,
       sell_lovelace_amount: 0,
       commission: datum.commission,
       deadline: datum.deadline,
@@ -152,7 +152,7 @@ fn change_sell_price_valid(datum: OptionDatum, ctx: ScriptContext) {
       current_owner_bech32_address: datum.current_owner_bech32_address,
       to_asset: datum.to_asset,
       to_asset_amount: datum.to_asset_amount,
-      from_asset: datum.from_asset,
+      locked_asset: datum.locked_asset,
       sell_lovelace_amount: 0,
       commission: datum.commission,
       deadline: datum.deadline,
@@ -166,7 +166,7 @@ fn change_sell_price_valid(datum: OptionDatum, ctx: ScriptContext) {
       current_owner_bech32_address: datum.current_owner_bech32_address,
       to_asset: output_datum_typed.to_asset,
       to_asset_amount: output_datum_typed.to_asset_amount,
-      from_asset: output_datum_typed.from_asset,
+      locked_asset: output_datum_typed.locked_asset,
       sell_lovelace_amount: 0,
       deadline: output_datum_typed.deadline,
       commission: output_datum_typed.commission,
