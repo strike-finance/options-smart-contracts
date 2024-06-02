@@ -128,7 +128,10 @@ fn exercise_option_valid(datum: OptionDatum, ctx: ScriptContext) {
   let to_asset_amount_same: Bool = output_to_address.value == expected_to_value
 
   let must_be_signed_by_owner =
-    list.has(ctx.transaction.extra_signatories, datum.issuer_address_hash)
+    list.has(
+      ctx.transaction.extra_signatories,
+      datum.current_owner_address_hash,
+    )
 
   must_be_signed_by_owner && deadline_not_passed && only_one_validator_input && to_asset_amount_same
 }
