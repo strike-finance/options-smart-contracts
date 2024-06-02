@@ -1,7 +1,7 @@
 use aiken/list
 use aiken/transaction.{InlineDatum, Input, Output, ScriptContext, Spend}
 use aiken/transaction/credential.{Address, from_verification_key}
-use aiken/transaction/value.{Value, from_asset, quantity_of}
+use aiken/transaction/value.{quantity_of}
 use types.{LovelaceAmount, OptionDatum}
 use utils.{get_lovelace_to_address}
 
@@ -118,14 +118,12 @@ fn exercise_option_valid(datum: OptionDatum, ctx: ScriptContext) {
       },
     )
 
-  let expected_to_value: Value =
-    from_asset(
+  let to_asset_amount_same: Bool =
+    quantity_of(
+      output_to_address.value,
       datum.to_asset.policy_id,
       datum.to_asset.asset_name,
-      datum.to_asset_amount,
-    )
-
-  let to_asset_amount_same: Bool = output_to_address.value == expected_to_value
+    ) == datum.to_asset_amount
 
   let must_be_signed_by_owner =
     list.has(
