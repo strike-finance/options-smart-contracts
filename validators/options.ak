@@ -176,7 +176,10 @@ fn change_sell_price_valid(datum: OptionDatum, ctx: ScriptContext) {
     utils.get_lower_bound(ctx.transaction.validity_range) < datum.deadline
 
   let must_be_signed_by_owner =
-    list.has(ctx.transaction.extra_signatories, datum.issuer_address_hash)
+    list.has(
+      ctx.transaction.extra_signatories,
+      datum.current_owner_address_hash,
+    )
 
   must_be_signed_by_owner && deadline_not_passed && only_one_validator_input && only_one_validtaor_output && input_datum_info == output_datum_info
 }
