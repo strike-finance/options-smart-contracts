@@ -16,11 +16,6 @@ type Redeemer {
   action: LoanRedeemer,
 }
 
-// sell_amount paid to current owner
-// deadline has not passed
-// percentage paid to original owner 
-// least ada per sell to issuer is 2 ada
-// sale price cannot be 0 
 fn buy_option_valid(datum: OptionDatum, ctx: ScriptContext) {
   let is_for_sale: Bool = datum.sell_lovelace_amount > 0
 
@@ -51,15 +46,15 @@ fn buy_option_valid(datum: OptionDatum, ctx: ScriptContext) {
   let asset_locked: Int =
     quantity_of(
       input_from_validator.output.value,
-      datum.locked_asset.policy_id,
-      datum.locked_asset.asset_name,
+      datum.from_asset.policy_id,
+      datum.from_asset.asset_name,
     )
 
   let asset_send_back: Int =
     quantity_of(
       output_to_validator.value,
-      datum.locked_asset.policy_id,
-      datum.locked_asset.asset_name,
+      datum.from_asset.policy_id,
+      datum.from_asset.asset_name,
     )
 
   let lovelace_amount_same: Bool = asset_locked == asset_send_back
@@ -75,7 +70,8 @@ fn buy_option_valid(datum: OptionDatum, ctx: ScriptContext) {
       current_owner_bech32_address: "",
       to_asset: datum.to_asset,
       to_asset_amount: datum.to_asset_amount,
-      locked_asset: datum.locked_asset,
+      from_asset: datum.from_asset,
+      from_asset_amount: datum.from_asset_amount,
       sell_lovelace_amount: 0,
       commission: datum.commission,
       deadline: datum.deadline,
@@ -89,7 +85,8 @@ fn buy_option_valid(datum: OptionDatum, ctx: ScriptContext) {
       current_owner_bech32_address: "",
       to_asset: datum.to_asset,
       to_asset_amount: datum.to_asset_amount,
-      locked_asset: datum.locked_asset,
+      from_asset: datum.from_asset,
+      from_asset_amount: asset_send_back,
       sell_lovelace_amount: 0,
       commission: datum.commission,
       deadline: datum.deadline,
@@ -97,8 +94,6 @@ fn buy_option_valid(datum: OptionDatum, ctx: ScriptContext) {
   is_for_sale && amount_to_current_owner_valid && deadline_not_passed && amount_to_issuer_valid && only_one_validator_input && only_one_validtaor_output && lovelace_amount_same && input_datum_info == output_datum_info
 }
 
-// deadline not passed, original owner signed transaction
-// tokens are being sent to be owner
 fn exercise_option_valid(datum: OptionDatum, ctx: ScriptContext) {
   let deadline_not_passed: Bool =
     utils.get_lower_bound(ctx.transaction.validity_range) < datum.deadline
@@ -134,16 +129,34 @@ fn exercise_option_valid(datum: OptionDatum, ctx: ScriptContext) {
   must_be_signed_by_owner && deadline_not_passed && only_one_validator_input && to_asset_amount_same
 }
 
-// only sale price changed 
 fn change_sell_price_valid(datum: OptionDatum, ctx: ScriptContext) {
   let outputs_to_validator: List<Output> = utils.get_validators_outputs(ctx)
-  expect Some(output) = list.at(outputs_to_validator, 0)
-  expect InlineDatum(output_datum) = output.datum
+  expect Some(output_to_validator) = list.at(outputs_to_validator, 0)
+  expect InlineDatum(output_datum) = output_to_validator.datum
   expect output_datum_typed: OptionDatum = output_datum
+
+  expect Spend(my_output_reference) = ctx.purpose
+  expect Some(input_from_validator) =
+    ctx.transaction.inputs
+      |> transaction.find_input(my_output_reference)
 
   let only_one_validtaor_output: Bool = list.length(outputs_to_validator) == 1
   let only_one_validator_input: Bool =
     list.length(utils.get_validators_inputs(ctx)) == 1
+
+  let asset_locked: Int =
+    quantity_of(
+      input_from_validator.output.value,
+      datum.from_asset.policy_id,
+      datum.from_asset.asset_name,
+    )
+
+  let asset_send_back: Int =
+    quantity_of(
+      output_to_validator.value,
+      datum.from_asset.policy_id,
+      datum.from_asset.asset_name,
+    )
 
   let input_datum_info =
     OptionDatum {
@@ -153,7 +166,8 @@ fn change_sell_price_valid(datum: OptionDatum, ctx: ScriptContext) {
       current_owner_bech32_address: datum.current_owner_bech32_address,
       to_asset: datum.to_asset,
       to_asset_amount: datum.to_asset_amount,
-      locked_asset: datum.locked_asset,
+      from_asset: datum.from_asset,
+      from_asset_amount: datum.from_asset_amount,
       sell_lovelace_amount: 0,
       commission: datum.commission,
       deadline: datum.deadline,
@@ -167,7 +181,8 @@ fn change_sell_price_valid(datum: OptionDatum, ctx: ScriptContext) {
       current_owner_bech32_address: datum.current_owner_bech32_address,
       to_asset: output_datum_typed.to_asset,
       to_asset_amount: output_datum_typed.to_asset_amount,
-      locked_asset: output_datum_typed.locked_asset,
+      from_asset: output_datum_typed.from_asset,
+      from_asset_amount: output_datum_typed.from_asset_amount,
       sell_lovelace_amount: 0,
       deadline: output_datum_typed.deadline,
       commission: output_datum_typed.commission,
@@ -182,17 +197,22 @@ fn change_sell_price_valid(datum: OptionDatum, ctx: ScriptContext) {
       datum.current_owner_address_hash,
     )
 
-  must_be_signed_by_owner && deadline_not_passed && only_one_validator_input && only_one_validtaor_output && input_datum_info == output_datum_info
+  let asset_locked_same: Bool = asset_locked == asset_send_back
+
+  must_be_signed_by_owner && deadline_not_passed && only_one_validator_input && only_one_validtaor_output && asset_locked_same && input_datum_info == output_datum_info
 }
 
 fn issuer_get_back_asset_valid(datum: OptionDatum, ctx: ScriptContext) {
-  let must_be_signed_by_owner =
+  let must_be_signed_by_issuer =
     list.has(ctx.transaction.extra_signatories, datum.issuer_address_hash)
 
   let deadline_passed: Bool =
     utils.get_lower_bound(ctx.transaction.validity_range) > datum.deadline
 
-  must_be_signed_by_owner && deadline_passed
+  let issuer_is_current_owner =
+    datum.issuer_address_hash == datum.current_owner_address_hash
+
+  must_be_signed_by_issuer && ( deadline_passed || issuer_is_current_owner )
 }
 
 validator {
