@@ -1,9 +1,9 @@
 use aiken/list
 use aiken/transaction.{InlineDatum, Input, Output, ScriptContext, Spend}
 use aiken/transaction/credential.{Address, from_verification_key}
-use aiken/transaction/value.{quantity_of}
+use aiken/transaction/value.{AssetName, PolicyId, quantity_of}
 use types.{LovelaceAmount, OptionDatum}
-use utils.{get_lovelace_to_address}
+use utils.{get_asset_to_address}
 
 type LoanRedeemer {
   BuyOption
@@ -16,21 +16,36 @@ type Redeemer {
   action: LoanRedeemer,
 }
 
-fn buy_option_valid(datum: OptionDatum, ctx: ScriptContext) {
-  let is_for_sale: Bool = datum.sell_lovelace_amount > 0
+fn buy_option_valid(
+  datum: OptionDatum,
+  ctx: ScriptContext,
+  policy_id: PolicyId,
+  asset_name: AssetName,
+) {
+  let is_for_sale: Bool = datum.sell_stablecoin_amount > 0
 
   let current_owner_address: Address =
     from_verification_key(datum.current_owner_address_hash)
-  let amount_to_current_owner: LovelaceAmount =
-    get_lovelace_to_address(ctx.transaction.outputs, current_owner_address)
+  let amount_to_current_owner: Int =
+    get_asset_to_address(
+      ctx.transaction.outputs,
+      current_owner_address,
+      policy_id,
+      asset_name,
+    )
   let amount_to_current_owner_valid: Bool =
-    amount_to_current_owner >= datum.sell_lovelace_amount
+    amount_to_current_owner >= datum.sell_stablecoin_amount
 
   let issuer_address: Address = from_verification_key(datum.issuer_address_hash)
   let amount_to_issuer: LovelaceAmount =
-    get_lovelace_to_address(ctx.transaction.outputs, issuer_address)
+    get_asset_to_address(
+      ctx.transaction.outputs,
+      issuer_address,
+      policy_id,
+      asset_name,
+    )
   let amount_to_issuer_valid: Bool =
-    amount_to_issuer >= datum.sell_lovelace_amount * datum.commission / 100 || amount_to_issuer >= datum.sell_lovelace_amount * datum.commission / 100 && amount_to_current_owner == 2000000
+    amount_to_issuer >= datum.sell_stablecoin_amount * datum.commission / 100
 
   expect Spend(my_output_reference) = ctx.purpose
   expect Some(input_from_validator) =
@@ -72,7 +87,7 @@ fn buy_option_valid(datum: OptionDatum, ctx: ScriptContext) {
       to_asset_amount: datum.to_asset_amount,
       from_asset: datum.from_asset,
       from_asset_amount: datum.from_asset_amount,
-      sell_lovelace_amount: 0,
+      sell_stablecoin_amount: 0,
       commission: datum.commission,
       deadline: datum.deadline,
     }
@@ -87,7 +102,7 @@ fn buy_option_valid(datum: OptionDatum, ctx: ScriptContext) {
       to_asset_amount: datum.to_asset_amount,
       from_asset: datum.from_asset,
       from_asset_amount: asset_send_back,
-      sell_lovelace_amount: 0,
+      sell_stablecoin_amount: 0,
       commission: datum.commission,
       deadline: datum.deadline,
     }
@@ -168,7 +183,7 @@ fn change_sell_price_valid(datum: OptionDatum, ctx: ScriptContext) {
       to_asset_amount: datum.to_asset_amount,
       from_asset: datum.from_asset,
       from_asset_amount: datum.from_asset_amount,
-      sell_lovelace_amount: 0,
+      sell_stablecoin_amount: 0,
       commission: datum.commission,
       deadline: datum.deadline,
     }
@@ -183,7 +198,7 @@ fn change_sell_price_valid(datum: OptionDatum, ctx: ScriptContext) {
       to_asset_amount: output_datum_typed.to_asset_amount,
       from_asset: output_datum_typed.from_asset,
       from_asset_amount: output_datum_typed.from_asset_amount,
-      sell_lovelace_amount: 0,
+      sell_stablecoin_amount: 0,
       deadline: output_datum_typed.deadline,
       commission: output_datum_typed.commission,
     }
@@ -215,10 +230,10 @@ fn issuer_get_back_asset_valid(datum: OptionDatum, ctx: ScriptContext) {
   must_be_signed_by_issuer && ( deadline_passed || issuer_is_current_owner )
 }
 
-validator {
+validator(policy_id: PolicyId, asset_name: AssetName) {
   fn spend(datum: OptionDatum, redeemer: Redeemer, ctx: ScriptContext) -> Bool {
     when redeemer.action is {
-      BuyOption -> buy_option_valid(datum, ctx)
+      BuyOption -> buy_option_valid(datum, ctx, policy_id, asset_name)
 
       ChangeSellPrice -> change_sell_price_valid(datum, ctx)
 

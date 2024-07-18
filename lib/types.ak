@@ -21,7 +21,7 @@ pub type OptionDatum {
   issuer_bech32_address: ByteArray,
   current_owner_address_hash: AddressHash,
   current_owner_bech32_address: ByteArray,
-  sell_lovelace_amount: Int,
+  sell_stablecoin_amount: Int,
   from_asset: AssetClass,
   from_asset_amount: Int,
   to_asset: AssetClass,
