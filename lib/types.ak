@@ -17,9 +17,9 @@ pub type LovelaceAmount =
   Int
 
 pub type OptionDatum {
-  issuer_address_hash: AddressHash,
+  issuer_pub_key_hash: AddressHash,
   issuer_bech32_address: ByteArray,
-  current_owner_address_hash: AddressHash,
+  current_owner_pub_key_hash: AddressHash,
   current_owner_bech32_address: ByteArray,
   from_asset: AssetClass,
   from_asset_amount: Int,
@@ -27,7 +27,7 @@ pub type OptionDatum {
   to_asset_amount: Int,
   sell_stablecoin_amount: Int,
   highest_bid: Int,
-  highest_bidder_address_hash: AddressHash,
+  highest_bidder_pub_key_hash: AddressHash,
   highest_bidder_address: ByteArray,
   deadline: Int,
   commission: Int,
