@@ -2,17 +2,22 @@ use aiken/interval.{Finite}
 use aiken/list
 use aiken/transaction.{Input, Output, ScriptContext, ValidityRange}
 use aiken/transaction/credential.{Address, Credential, ScriptCredential}
-use aiken/transaction/value.{lovelace_of}
+use aiken/transaction/value.{AssetName, PolicyId, quantity_of}
 
-pub fn get_lovelace_to_address(outputs: List<Output>, address: Address) -> Int {
-  expect Some(outputs_to_address) =
+pub fn get_asset_to_address(
+  outputs: List<Output>,
+  address: Address,
+  policy_id: PolicyId,
+  asset_name: AssetName,
+) -> Int {
+  expect Some(output_to_address) =
     list.find(
       outputs,
       fn(output) {
         output.address.payment_credential == address.payment_credential
       },
     )
-  lovelace_of(outputs_to_address.value)
+  quantity_of(output_to_address.value, policy_id, asset_name)
 }
 
 pub fn get_lower_bound(range: ValidityRange) -> Int {
