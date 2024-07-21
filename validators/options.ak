@@ -10,6 +10,9 @@ type LoanRedeemer {
   ChangeSellPrice
   ExerciseOption
   IssuerGetBackAsset
+  PlaceBid
+  CancelBid
+  AcceptBid
 }
 
 type Redeemer {
@@ -19,8 +22,8 @@ type Redeemer {
 fn buy_option_valid(
   datum: OptionDatum,
   ctx: ScriptContext,
-  policy_id: PolicyId,
-  asset_name: AssetName,
+  stable_policy_id: PolicyId,
+  stable_asset_name: AssetName,
 ) {
   let is_for_sale: Bool = datum.sell_stablecoin_amount > 0
 
@@ -30,8 +33,8 @@ fn buy_option_valid(
     get_asset_to_address(
       ctx.transaction.outputs,
       current_owner_address,
-      policy_id,
-      asset_name,
+      stable_policy_id,
+      stable_asset_name,
     )
   let amount_to_current_owner_valid: Bool =
     amount_to_current_owner >= datum.sell_stablecoin_amount
@@ -41,8 +44,8 @@ fn buy_option_valid(
     get_asset_to_address(
       ctx.transaction.outputs,
       issuer_address,
-      policy_id,
-      asset_name,
+      stable_policy_id,
+      stable_asset_name,
     )
   let amount_to_issuer_valid: Bool =
     amount_to_issuer >= datum.sell_stablecoin_amount * datum.commission / 100
@@ -51,12 +54,11 @@ fn buy_option_valid(
   expect Some(input_from_validator) =
     ctx.transaction.inputs
       |> transaction.find_input(my_output_reference)
-  let only_one_validator_input: Bool =
-    list.length(utils.get_validators_inputs(ctx)) == 1
 
   let outputs_to_validator: List<Output> = utils.get_validators_outputs(ctx)
   expect Some(output_to_validator) = list.at(outputs_to_validator, 0)
-  let only_one_validtaor_output: Bool = list.length(outputs_to_validator) == 1
+  expect InlineDatum(output_datum) = output_to_validator.datum
+  expect output_datum_typed: OptionDatum = output_datum
 
   let asset_locked: Int =
     quantity_of(
@@ -77,39 +79,79 @@ fn buy_option_valid(
   let deadline_not_passed: Bool =
     datum.deadline > utils.get_lower_bound(ctx.transaction.validity_range)
 
-  let input_datum_info =
+  let compared_input_datum_info =
     OptionDatum {
       issuer_address_hash: datum.issuer_address_hash,
       issuer_bech32_address: datum.issuer_bech32_address,
       current_owner_address_hash: "",
       current_owner_bech32_address: "",
-      to_asset: datum.to_asset,
-      to_asset_amount: datum.to_asset_amount,
       from_asset: datum.from_asset,
       from_asset_amount: datum.from_asset_amount,
+      to_asset: datum.to_asset,
+      to_asset_amount: datum.to_asset_amount,
       sell_stablecoin_amount: 0,
+      highest_bid: 0,
+      highest_bidder_address_hash: "",
+      highest_bidder_address: "",
       commission: datum.commission,
       deadline: datum.deadline,
     }
 
-  let output_datum_info =
+  let compared_output_datum_info =
     OptionDatum {
       issuer_address_hash: datum.issuer_address_hash,
       issuer_bech32_address: datum.issuer_bech32_address,
       current_owner_address_hash: "",
       current_owner_bech32_address: "",
-      to_asset: datum.to_asset,
-      to_asset_amount: datum.to_asset_amount,
       from_asset: datum.from_asset,
       from_asset_amount: asset_send_back,
+      to_asset: datum.to_asset,
+      to_asset_amount: datum.to_asset_amount,
       sell_stablecoin_amount: 0,
+      highest_bid: 0,
+      highest_bidder_address_hash: "",
+      highest_bidder_address: "",
       commission: datum.commission,
       deadline: datum.deadline,
     }
-  is_for_sale && amount_to_current_owner_valid && deadline_not_passed && amount_to_issuer_valid && only_one_validator_input && only_one_validtaor_output && lovelace_amount_same && input_datum_info == output_datum_info
+
+  let only_one_validator_input: Bool =
+    list.length(utils.get_validators_inputs(ctx)) == 1
+
+  let only_one_validtaor_output: Bool = list.length(outputs_to_validator) == 1
+
+  let datum_valid: Bool =
+    compared_input_datum_info == compared_output_datum_info
+
+  let has_bid: Bool = datum.highest_bid > 0
+
+  let output_datum_valid =
+    output_datum_typed.highest_bid == 0 && output_datum_typed.highest_bidder_address_hash == "" && output_datum_typed.highest_bidder_address == "" && output_datum_typed.sell_stablecoin_amount == 0
+
+  let default_checks: Bool =
+    is_for_sale && amount_to_current_owner_valid && deadline_not_passed && amount_to_issuer_valid && only_one_validator_input && only_one_validtaor_output && lovelace_amount_same && datum_valid && output_datum_valid
+
+  if has_bid {
+    let bid_returned_to_owner =
+      get_asset_to_address(
+        ctx.transaction.outputs,
+        from_verification_key(datum.highest_bidder_address_hash),
+        stable_policy_id,
+        stable_asset_name,
+      ) == datum.highest_bid
+
+    default_checks && bid_returned_to_owner
+  } else {
+    default_checks
+  }
 }
 
-fn exercise_option_valid(datum: OptionDatum, ctx: ScriptContext) {
+fn exercise_option_valid(
+  datum: OptionDatum,
+  ctx: ScriptContext,
+  stable_policy_id: PolicyId,
+  stable_asset_name: AssetName,
+) {
   let deadline_not_passed: Bool =
     utils.get_lower_bound(ctx.transaction.validity_range) < datum.deadline
 
@@ -141,10 +183,32 @@ fn exercise_option_valid(datum: OptionDatum, ctx: ScriptContext) {
       datum.current_owner_address_hash,
     )
 
-  must_be_signed_by_owner && deadline_not_passed && only_one_validator_input && to_asset_amount_same
+  let has_bid: Bool = datum.highest_bid > 0
+
+  let default_checks =
+    must_be_signed_by_owner && deadline_not_passed && only_one_validator_input && to_asset_amount_same
+
+  if has_bid {
+    let bid_returned_to_owner =
+      get_asset_to_address(
+        ctx.transaction.outputs,
+        from_verification_key(datum.highest_bidder_address_hash),
+        stable_policy_id,
+        stable_asset_name,
+      ) == datum.highest_bid
+
+    default_checks && bid_returned_to_owner
+  } else {
+    default_checks
+  }
 }
 
-fn change_sell_price_valid(datum: OptionDatum, ctx: ScriptContext) {
+fn change_sell_price_valid(
+  datum: OptionDatum,
+  ctx: ScriptContext,
+  stable_policy_id: PolicyId,
+  stable_asset_name: AssetName,
+) {
   let outputs_to_validator: List<Output> = utils.get_validators_outputs(ctx)
   expect Some(output_to_validator) = list.at(outputs_to_validator, 0)
   expect InlineDatum(output_datum) = output_to_validator.datum
@@ -173,6 +237,21 @@ fn change_sell_price_valid(datum: OptionDatum, ctx: ScriptContext) {
       datum.from_asset.asset_name,
     )
 
+  let new_sale_price_larger_than_bid =
+    output_datum_typed.sell_stablecoin_amount >= datum.highest_bid
+
+  let bid_asset_locked: Int =
+    quantity_of(
+      input_from_validator.output.value,
+      stable_policy_id,
+      stable_asset_name,
+    )
+
+  let bid_asset_send_back: Int =
+    quantity_of(output_to_validator.value, stable_policy_id, stable_asset_name)
+
+  let bid_asset_not_consumed = bid_asset_locked == bid_asset_send_back
+
   let input_datum_info =
     OptionDatum {
       issuer_address_hash: datum.issuer_address_hash,
@@ -184,6 +263,9 @@ fn change_sell_price_valid(datum: OptionDatum, ctx: ScriptContext) {
       from_asset: datum.from_asset,
       from_asset_amount: datum.from_asset_amount,
       sell_stablecoin_amount: 0,
+      highest_bid: datum.highest_bid,
+      highest_bidder_address_hash: datum.highest_bidder_address_hash,
+      highest_bidder_address: datum.highest_bidder_address,
       commission: datum.commission,
       deadline: datum.deadline,
     }
@@ -199,6 +281,9 @@ fn change_sell_price_valid(datum: OptionDatum, ctx: ScriptContext) {
       from_asset: output_datum_typed.from_asset,
       from_asset_amount: output_datum_typed.from_asset_amount,
       sell_stablecoin_amount: 0,
+      highest_bid: datum.highest_bid,
+      highest_bidder_address_hash: datum.highest_bidder_address_hash,
+      highest_bidder_address: datum.highest_bidder_address,
       deadline: output_datum_typed.deadline,
       commission: output_datum_typed.commission,
     }
@@ -214,32 +299,218 @@ fn change_sell_price_valid(datum: OptionDatum, ctx: ScriptContext) {
 
   let asset_locked_same: Bool = asset_locked == asset_send_back
 
-  must_be_signed_by_owner && deadline_not_passed && only_one_validator_input && only_one_validtaor_output && asset_locked_same && input_datum_info == output_datum_info
+  bid_asset_not_consumed && new_sale_price_larger_than_bid && must_be_signed_by_owner && deadline_not_passed && only_one_validator_input && only_one_validtaor_output && asset_locked_same && input_datum_info == output_datum_info
 }
 
-fn issuer_get_back_asset_valid(datum: OptionDatum, ctx: ScriptContext) {
+fn issuer_get_back_asset_valid(
+  datum: OptionDatum,
+  ctx: ScriptContext,
+  stable_policy_id: PolicyId,
+  stable_asset_name: AssetName,
+) {
   let must_be_signed_by_issuer =
     list.has(ctx.transaction.extra_signatories, datum.issuer_address_hash)
 
   let deadline_passed: Bool =
     utils.get_lower_bound(ctx.transaction.validity_range) > datum.deadline
 
-  let issuer_is_current_owner =
+  let issuer_is_current_owner: Bool =
     datum.issuer_address_hash == datum.current_owner_address_hash
 
-  must_be_signed_by_issuer && ( deadline_passed || issuer_is_current_owner )
+  let has_bid: Bool = datum.highest_bid > 0
+
+  let default_checks =
+    must_be_signed_by_issuer && ( deadline_passed || issuer_is_current_owner )
+
+  if has_bid {
+    let bid_returned_to_owner =
+      get_asset_to_address(
+        ctx.transaction.outputs,
+        from_verification_key(datum.highest_bidder_address_hash),
+        stable_policy_id,
+        stable_asset_name,
+      ) == datum.highest_bid
+
+    default_checks && bid_returned_to_owner
+  } else {
+    default_checks
+  }
 }
 
-validator(policy_id: PolicyId, asset_name: AssetName) {
+fn place_bid_valid(
+  datum: OptionDatum,
+  ctx: ScriptContext,
+  stable_policy_id: PolicyId,
+  stable_asset_name: AssetName,
+) {
+  let outputs_to_validator: List<Output> = utils.get_validators_outputs(ctx)
+  expect Some(output_to_validator) = list.at(outputs_to_validator, 0)
+  expect InlineDatum(output_datum) = output_to_validator.datum
+  expect output_datum_typed: OptionDatum = output_datum
+
+  expect Spend(my_output_reference) = ctx.purpose
+  expect Some(input_from_validator) =
+    ctx.transaction.inputs
+      |> transaction.find_input(my_output_reference)
+
+  let only_one_validtaor_output: Bool = list.length(outputs_to_validator) == 1
+  let only_one_validator_input: Bool =
+    list.length(utils.get_validators_inputs(ctx)) == 1
+
+  let deadline_not_passed: Bool =
+    utils.get_lower_bound(ctx.transaction.validity_range) < datum.deadline
+
+  let stable_asset_in_input: Int =
+    quantity_of(
+      input_from_validator.output.value,
+      stable_policy_id,
+      stable_asset_name,
+    )
+
+  let is_for_sale: Bool = datum.sell_stablecoin_amount > 0
+
+  let stable_asset_in_output: Int =
+    quantity_of(output_to_validator.value, stable_policy_id, stable_asset_name)
+
+  let datum_value_not_corrupted =
+    datum.issuer_address_hash == output_datum_typed.issuer_address_hash && datum.issuer_bech32_address == output_datum_typed.issuer_bech32_address && datum.current_owner_address_hash == output_datum_typed.current_owner_address_hash && datum.current_owner_bech32_address == output_datum_typed.current_owner_bech32_address && datum.from_asset == output_datum_typed.from_asset && datum.from_asset_amount == output_datum_typed.from_asset_amount && datum.to_asset == output_datum_typed.to_asset && datum.to_asset_amount == output_datum_typed.to_asset_amount && datum.commission == output_datum_typed.commission && datum.deadline == output_datum_typed.deadline
+
+  let output_contains_correct_amount_of_stable_asset =
+    stable_asset_in_output >= stable_asset_in_input + output_datum_typed.highest_bid
+
+  let output_bid_datum_correct =
+    stable_asset_in_output - stable_asset_in_input >= output_datum_typed.highest_bid
+
+  let default_checks =
+    is_for_sale && deadline_not_passed && only_one_validator_input && only_one_validtaor_output && output_bid_datum_correct && datum_value_not_corrupted && output_contains_correct_amount_of_stable_asset
+
+  let has_bid = datum.highest_bid > 0
+
+  if has_bid {
+    let bid_higher_than_current: Bool =
+      datum.highest_bid > output_datum_typed.highest_bid
+
+    let bid_returned_to_previous_owner =
+      get_asset_to_address(
+        ctx.transaction.outputs,
+        from_verification_key(datum.highest_bidder_address_hash),
+        stable_policy_id,
+        stable_asset_name,
+      ) == datum.highest_bid
+
+    default_checks && bid_higher_than_current && bid_returned_to_previous_owner
+  } else {
+    default_checks
+  }
+}
+
+fn cancel_bid_valid(
+  datum: OptionDatum,
+  ctx: ScriptContext,
+  stable_policy_id: PolicyId,
+  stable_asset_name: AssetName,
+) {
+  let outputs_to_validator: List<Output> = utils.get_validators_outputs(ctx)
+  expect Some(output_to_validator) = list.at(outputs_to_validator, 0)
+  expect InlineDatum(output_datum) = output_to_validator.datum
+  expect output_datum_typed: OptionDatum = output_datum
+
+  expect Spend(my_output_reference) = ctx.purpose
+  expect Some(input_from_validator) =
+    ctx.transaction.inputs
+      |> transaction.find_input(my_output_reference)
+
+  let stable_asset_in_input: Int =
+    quantity_of(
+      input_from_validator.output.value,
+      stable_policy_id,
+      stable_asset_name,
+    )
+
+  let stable_asset_in_output: Int =
+    quantity_of(output_to_validator.value, stable_policy_id, stable_asset_name)
+
+  let output_contains_correct_amount_of_stable_asset =
+    stable_asset_in_input - datum.highest_bid == stable_asset_in_output
+
+  let datum_value_not_corrupted =
+    datum.issuer_address_hash == output_datum_typed.issuer_address_hash && datum.issuer_bech32_address == output_datum_typed.issuer_bech32_address && datum.current_owner_address_hash == output_datum_typed.current_owner_address_hash && datum.current_owner_bech32_address == output_datum_typed.current_owner_bech32_address && datum.from_asset == output_datum_typed.from_asset && datum.from_asset_amount == output_datum_typed.from_asset_amount && datum.to_asset == output_datum_typed.to_asset && datum.to_asset_amount == output_datum_typed.to_asset_amount && datum.commission == output_datum_typed.commission && datum.deadline == output_datum_typed.deadline
+
+  let new_bid_valid =
+    output_datum_typed.highest_bid == 0 && output_datum_typed.highest_bidder_address_hash == "" && output_datum_typed.highest_bidder_address == ""
+
+  datum_value_not_corrupted && output_contains_correct_amount_of_stable_asset && new_bid_valid
+}
+
+fn accept_bid_valid(
+  datum: OptionDatum,
+  ctx: ScriptContext,
+  stable_policy_id: PolicyId,
+  stable_asset_name: AssetName,
+) {
+  let outputs_to_validator: List<Output> = utils.get_validators_outputs(ctx)
+  expect Some(output_to_validator) = list.at(outputs_to_validator, 0)
+  expect InlineDatum(output_datum) = output_to_validator.datum
+  expect output_datum_typed: OptionDatum = output_datum
+
+  expect Spend(my_output_reference) = ctx.purpose
+  expect Some(input_from_validator) =
+    ctx.transaction.inputs
+      |> transaction.find_input(my_output_reference)
+
+  let stable_asset_in_input: Int =
+    quantity_of(
+      input_from_validator.output.value,
+      stable_policy_id,
+      stable_asset_name,
+    )
+
+  let stable_asset_in_output: Int =
+    quantity_of(output_to_validator.value, stable_policy_id, stable_asset_name)
+
+  let output_contains_correct_amount_of_stable_asset =
+    stable_asset_in_input - datum.highest_bid == stable_asset_in_output
+
+  let datum_value_not_corrupted =
+    datum.issuer_address_hash == output_datum_typed.issuer_address_hash && datum.issuer_bech32_address == output_datum_typed.issuer_bech32_address && datum.from_asset == output_datum_typed.from_asset && datum.from_asset_amount == output_datum_typed.from_asset_amount && datum.to_asset == output_datum_typed.to_asset && datum.to_asset_amount == output_datum_typed.to_asset_amount && datum.commission == output_datum_typed.commission && datum.deadline == output_datum_typed.deadline
+
+  let new_owner_valid =
+    output_datum_typed.current_owner_address_hash == datum.highest_bidder_address_hash && output_datum_typed.current_owner_bech32_address == datum.highest_bidder_address
+
+  let new_bid_valid =
+    output_datum_typed.highest_bid == 0 && output_datum_typed.highest_bidder_address_hash == "" && output_datum_typed.highest_bidder_address == ""
+
+  datum_value_not_corrupted && output_contains_correct_amount_of_stable_asset && new_bid_valid && new_owner_valid
+}
+
+validator(stable_policy_id: PolicyId, stable_asset_name: AssetName) {
   fn spend(datum: OptionDatum, redeemer: Redeemer, ctx: ScriptContext) -> Bool {
     when redeemer.action is {
-      BuyOption -> buy_option_valid(datum, ctx, policy_id, asset_name)
+      BuyOption ->
+        buy_option_valid(datum, ctx, stable_policy_id, stable_asset_name)
 
-      ChangeSellPrice -> change_sell_price_valid(datum, ctx)
+      ChangeSellPrice ->
+        change_sell_price_valid(datum, ctx, stable_policy_id, stable_asset_name)
 
-      ExerciseOption -> exercise_option_valid(datum, ctx)
+      ExerciseOption ->
+        exercise_option_valid(datum, ctx, stable_policy_id, stable_asset_name)
 
-      IssuerGetBackAsset -> issuer_get_back_asset_valid(datum, ctx)
+      IssuerGetBackAsset ->
+        issuer_get_back_asset_valid(
+          datum,
+          ctx,
+          stable_policy_id,
+          stable_asset_name,
+        )
+
+      PlaceBid ->
+        place_bid_valid(datum, ctx, stable_policy_id, stable_asset_name)
+
+      CancelBid ->
+        cancel_bid_valid(datum, ctx, stable_policy_id, stable_asset_name)
+
+      AcceptBid ->
+        accept_bid_valid(datum, ctx, stable_policy_id, stable_asset_name)
     }
   }
 }
