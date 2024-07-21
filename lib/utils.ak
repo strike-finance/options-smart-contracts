@@ -10,14 +10,18 @@ pub fn get_asset_to_address(
   policy_id: PolicyId,
   asset_name: AssetName,
 ) -> Int {
-  expect Some(output_to_address) =
+  let output_to_address =
     list.find(
       outputs,
       fn(output) {
         output.address.payment_credential == address.payment_credential
       },
     )
-  quantity_of(output_to_address.value, policy_id, asset_name)
+
+  when output_to_address is {
+    Some(output) -> quantity_of(output.value, policy_id, asset_name)
+    None -> 0
+  }
 }
 
 pub fn get_lower_bound(range: ValidityRange) -> Int {
