@@ -9,7 +9,7 @@ type LoanRedeemer {
   BuyOption
   ChangeSellPrice
   ExerciseOption
-  IssuerGetBackAsset
+  CancelOption
   PlaceBid
   CancelBid
   AcceptBid
@@ -126,7 +126,7 @@ fn buy_option_valid(
   let has_bid: Bool = datum.highest_bid > 0
 
   let output_datum_valid: Bool =
-    output_datum_typed.highest_bid == 0 && output_datum_typed.sell_stablecoin_amount == 0 && output_datum_typed.highest_bidder_pub_key_hash == "" && output_datum_typed.highest_bidder_address == ""
+    output_datum_typed.highest_bid == 0 && output_datum_typed.highest_bidder_pub_key_hash == "" && output_datum_typed.highest_bidder_address == ""
 
   let default_checks: Bool =
     is_for_sale && amount_to_current_owner_valid && deadline_not_passed && amount_to_issuer_valid && only_one_validator_input && only_one_validtaor_output && asset_not_consumed && datum_valid && output_datum_valid
@@ -191,7 +191,7 @@ fn exercise_option_valid(
     must_be_signed_by_owner && deadline_not_passed && only_one_validator_input && to_issuer_addrress_amount_valid
 
   if has_bid {
-    let bid_returned_to_owner =
+    let bid_returned_to_owner: Bool =
       get_asset_to_address(
         ctx.transaction.outputs,
         from_verification_key(datum.highest_bidder_pub_key_hash),
@@ -304,7 +304,7 @@ fn change_sell_price_valid(
   bid_asset_not_consumed && new_sale_price_larger_than_bid && must_be_signed_by_owner && deadline_not_passed && only_one_validator_input && only_one_validtaor_output && asset_locked_same && input_datum_info == output_datum_info
 }
 
-fn issuer_get_back_asset_valid(
+fn cancel_option_valid(
   datum: OptionDatum,
   ctx: ScriptContext,
   stable_policy_id: PolicyId,
@@ -557,13 +557,8 @@ validator(stable_policy_id: PolicyId, stable_asset_name: AssetName) {
       ExerciseOption ->
         exercise_option_valid(datum, ctx, stable_policy_id, stable_asset_name)
 
-      IssuerGetBackAsset ->
-        issuer_get_back_asset_valid(
-          datum,
-          ctx,
-          stable_policy_id,
-          stable_asset_name,
-        )
+      CancelOption ->
+        cancel_option_valid(datum, ctx, stable_policy_id, stable_asset_name)
 
       PlaceBid ->
         place_bid_valid(datum, ctx, stable_policy_id, stable_asset_name)
