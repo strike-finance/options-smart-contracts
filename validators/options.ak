@@ -245,7 +245,7 @@ fn change_sell_price_valid(
   let bid_asset_send_back: Int =
     quantity_of(output_to_validator.value, stable_policy_id, stable_asset_name)
 
-  let bid_asset_not_consumed = bid_asset_locked == bid_asset_send_back
+  let bid_asset_not_consumed = bid_asset_send_back >= bid_asset_locked
 
   let input_datum_info =
     OptionDatum {
@@ -283,9 +283,6 @@ fn change_sell_price_valid(
       commission: output_datum_typed.commission,
     }
 
-  let new_sale_price_larger_than_bid: Bool =
-    output_datum_typed.sell_stablecoin_amount >= datum.highest_bid
-
   let only_one_validtaor_output: Bool = list.length(outputs_to_validator) == 1
   let only_one_validator_input: Bool =
     list.length(utils.get_validators_inputs(ctx)) == 1
@@ -301,7 +298,26 @@ fn change_sell_price_valid(
 
   let asset_locked_same: Bool = asset_locked == asset_send_back
 
-  bid_asset_not_consumed && new_sale_price_larger_than_bid && must_be_signed_by_owner && deadline_not_passed && only_one_validator_input && only_one_validtaor_output && asset_locked_same && input_datum_info == output_datum_info
+  let hold_option: Bool = output_datum_typed.sell_stablecoin_amount == 0
+  let default_checks: Bool =
+    must_be_signed_by_owner && deadline_not_passed && only_one_validator_input && only_one_validtaor_output && asset_locked_same && input_datum_info == output_datum_info
+
+  if hold_option {
+    let bid_returned_to_owner: Bool =
+      get_asset_to_address(
+        ctx.transaction.outputs,
+        from_verification_key(datum.highest_bidder_pub_key_hash),
+        stable_policy_id,
+        stable_asset_name,
+      ) >= datum.highest_bid
+
+    bid_returned_to_owner && default_checks
+  } else {
+    let new_sale_price_larger_than_bid: Bool =
+      output_datum_typed.sell_stablecoin_amount >= datum.highest_bid
+
+    bid_asset_not_consumed && new_sale_price_larger_than_bid && default_checks
+  }
 }
 
 fn cancel_option_valid(
