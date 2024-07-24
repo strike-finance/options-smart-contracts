@@ -90,6 +90,7 @@ fn buy_option_valid(
       highest_bidder_address: "",
       commission: datum.commission,
       deadline: datum.deadline,
+      action_code: 1,
     }
 
   let compared_output_datum_info =
@@ -108,6 +109,7 @@ fn buy_option_valid(
       highest_bidder_address: "",
       commission: datum.commission,
       deadline: datum.deadline,
+      action_code: output_datum_typed.action_code,
     }
 
   let asset_not_consumed: Bool = asset_send_back >= asset_locked
@@ -142,63 +144,6 @@ fn buy_option_valid(
 
     let bid_returned_to_owner: Bool =
       asset_send_back_to_previous_bidder >= datum.highest_bid
-    default_checks && bid_returned_to_owner
-  } else {
-    default_checks
-  }
-}
-
-fn exercise_option_valid(
-  datum: OptionDatum,
-  ctx: ScriptContext,
-  stable_policy_id: PolicyId,
-  stable_asset_name: AssetName,
-) {
-  let deadline_not_passed: Bool =
-    utils.get_lower_bound(ctx.transaction.validity_range) < datum.deadline
-
-  let only_one_validator_input: Bool =
-    list.length(utils.get_validators_inputs(ctx)) == 1
-
-  let issuer_address: Address = from_verification_key(datum.issuer_pub_key_hash)
-
-  let outputs: List<Output> = ctx.transaction.outputs
-
-  expect Some(output_to_address) =
-    list.find(
-      outputs,
-      fn(output) {
-        output.address.payment_credential == issuer_address.payment_credential
-      },
-    )
-
-  let to_issuer_addrress_amount_valid: Bool =
-    quantity_of(
-      output_to_address.value,
-      datum.to_asset.policy_id,
-      datum.to_asset.asset_name,
-    ) >= datum.to_asset_amount
-
-  let must_be_signed_by_owner =
-    list.has(
-      ctx.transaction.extra_signatories,
-      datum.current_owner_pub_key_hash,
-    )
-
-  let has_bid: Bool = datum.highest_bid > 0
-
-  let default_checks: Bool =
-    must_be_signed_by_owner && deadline_not_passed && only_one_validator_input && to_issuer_addrress_amount_valid
-
-  if has_bid {
-    let bid_returned_to_owner: Bool =
-      get_asset_to_address(
-        ctx.transaction.outputs,
-        from_verification_key(datum.highest_bidder_pub_key_hash),
-        stable_policy_id,
-        stable_asset_name,
-      ) >= datum.highest_bid
-
     default_checks && bid_returned_to_owner
   } else {
     default_checks
@@ -263,6 +208,7 @@ fn change_sell_price_valid(
       highest_bidder_address: datum.highest_bidder_address,
       commission: datum.commission,
       deadline: datum.deadline,
+      action_code: 2,
     }
 
   let output_datum_info =
@@ -281,6 +227,7 @@ fn change_sell_price_valid(
       highest_bidder_address: datum.highest_bidder_address,
       deadline: output_datum_typed.deadline,
       commission: output_datum_typed.commission,
+      action_code: output_datum_typed.action_code,
     }
 
   let only_one_validtaor_output: Bool = list.length(outputs_to_validator) == 1
@@ -317,6 +264,63 @@ fn change_sell_price_valid(
       output_datum_typed.sell_stablecoin_amount >= datum.highest_bid
 
     bid_asset_not_consumed && new_sale_price_larger_than_bid && default_checks
+  }
+}
+
+fn exercise_option_valid(
+  datum: OptionDatum,
+  ctx: ScriptContext,
+  stable_policy_id: PolicyId,
+  stable_asset_name: AssetName,
+) {
+  let deadline_not_passed: Bool =
+    utils.get_lower_bound(ctx.transaction.validity_range) < datum.deadline
+
+  let only_one_validator_input: Bool =
+    list.length(utils.get_validators_inputs(ctx)) == 1
+
+  let issuer_address: Address = from_verification_key(datum.issuer_pub_key_hash)
+
+  let outputs: List<Output> = ctx.transaction.outputs
+
+  expect Some(output_to_address) =
+    list.find(
+      outputs,
+      fn(output) {
+        output.address.payment_credential == issuer_address.payment_credential
+      },
+    )
+
+  let to_issuer_addrress_amount_valid: Bool =
+    quantity_of(
+      output_to_address.value,
+      datum.to_asset.policy_id,
+      datum.to_asset.asset_name,
+    ) >= datum.to_asset_amount
+
+  let must_be_signed_by_owner =
+    list.has(
+      ctx.transaction.extra_signatories,
+      datum.current_owner_pub_key_hash,
+    )
+
+  let has_bid: Bool = datum.highest_bid > 0
+
+  let default_checks: Bool =
+    must_be_signed_by_owner && deadline_not_passed && only_one_validator_input && to_issuer_addrress_amount_valid
+
+  if has_bid {
+    let bid_returned_to_owner: Bool =
+      get_asset_to_address(
+        ctx.transaction.outputs,
+        from_verification_key(datum.highest_bidder_pub_key_hash),
+        stable_policy_id,
+        stable_asset_name,
+      ) >= datum.highest_bid
+
+    default_checks && bid_returned_to_owner
+  } else {
+    default_checks
   }
 }
 
@@ -395,6 +399,8 @@ fn place_bid_valid(
   let stable_asset_in_output: Int =
     quantity_of(output_to_validator.value, stable_policy_id, stable_asset_name)
 
+  let valid_code: Bool = output_datum_typed.action_code == 3
+
   let only_one_validtaor_output: Bool = list.length(outputs_to_validator) == 1
   let only_one_validator_input: Bool =
     list.length(utils.get_validators_inputs(ctx)) == 1
@@ -416,7 +422,7 @@ fn place_bid_valid(
     stable_asset_in_output >= stable_asset_in_input - datum.highest_bid + output_datum_typed.highest_bid
 
   let default_checks: Bool =
-    asset_not_consumed && is_for_sale && deadline_not_passed && only_one_validator_input && only_one_validtaor_output && output_bid_datum_correct && datum_value_not_corrupted && output_contains_correct_amount_of_stable_asset
+    valid_code && asset_not_consumed && is_for_sale && deadline_not_passed && only_one_validator_input && only_one_validtaor_output && output_bid_datum_correct && datum_value_not_corrupted && output_contains_correct_amount_of_stable_asset
 
   let has_bid: Bool = datum.highest_bid > 0
 
@@ -495,7 +501,9 @@ fn cancel_bid_valid(
       datum.highest_bidder_pub_key_hash,
     )
 
-  datum_value_not_corrupted && output_contains_correct_amount_of_stable_asset && new_bid_valid && asset_not_consumed && signed_by_bidder
+  let valid_code: Bool = output_datum_typed.action_code == 4
+
+  valid_code && datum_value_not_corrupted && output_contains_correct_amount_of_stable_asset && new_bid_valid && asset_not_consumed && signed_by_bidder
 }
 
 fn accept_bid_valid(
@@ -558,7 +566,9 @@ fn accept_bid_valid(
   let new_bid_valid: Bool =
     output_datum_typed.highest_bid == 0 && output_datum_typed.highest_bidder_pub_key_hash == "" && output_datum_typed.highest_bidder_address == ""
 
-  asset_not_consumed && signed_by_holder && datum_value_not_corrupted && output_contains_correct_amount_of_stable_asset && new_bid_valid && new_owner_valid
+  let valid_code: Bool = output_datum_typed.action_code == 5
+
+  valid_code && asset_not_consumed && signed_by_holder && datum_value_not_corrupted && output_contains_correct_amount_of_stable_asset && new_bid_valid && new_owner_valid
 }
 
 validator(stable_policy_id: PolicyId, stable_asset_name: AssetName) {
