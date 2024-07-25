@@ -1,9 +1,6 @@
 use aiken/hash.{Blake2b_224, Hash}
-use aiken/transaction/credential.{Script, VerificationKey}
+use aiken/transaction/credential.{VerificationKey}
 use aiken/transaction/value.{AssetName, PolicyId}
-
-pub type ValidatorHash =
-  Hash<Blake2b_224, Script>
 
 pub type AssetClass {
   policy_id: PolicyId,
