@@ -3,7 +3,7 @@ use aiken/transaction.{InlineDatum, Input, Output, ScriptContext, Spend}
 use aiken/transaction/credential.{Address, from_verification_key}
 use aiken/transaction/value.{AssetName, PolicyId, quantity_of}
 use types.{LovelaceAmount, OptionDatum}
-use utils.{get_asset_to_address}
+use utils.{get_address_output, get_asset_to_address}
 
 type LoanRedeemer {
   BuyOption
@@ -55,7 +55,9 @@ fn buy_option_valid(
     ctx.transaction.inputs
       |> transaction.find_input(my_output_reference)
 
-  let outputs_to_validator: List<Output> = utils.get_validators_outputs(ctx)
+  let outputs_to_validator: List<Output> =
+    get_address_output(ctx, input_from_validator.output.address)
+
   expect Some(output_to_validator) = list.at(outputs_to_validator, 0)
   expect InlineDatum(output_datum) = output_to_validator.datum
   expect output_datum_typed: OptionDatum = output_datum
@@ -156,15 +158,17 @@ fn change_sell_price_valid(
   stable_policy_id: PolicyId,
   stable_asset_name: AssetName,
 ) {
-  let outputs_to_validator: List<Output> = utils.get_validators_outputs(ctx)
-  expect Some(output_to_validator) = list.at(outputs_to_validator, 0)
-  expect InlineDatum(output_datum) = output_to_validator.datum
-  expect output_datum_typed: OptionDatum = output_datum
-
   expect Spend(my_output_reference) = ctx.purpose
   expect Some(input_from_validator) =
     ctx.transaction.inputs
       |> transaction.find_input(my_output_reference)
+
+  let outputs_to_validator: List<Output> =
+    get_address_output(ctx, input_from_validator.output.address)
+
+  expect Some(output_to_validator) = list.at(outputs_to_validator, 0)
+  expect InlineDatum(output_datum) = output_to_validator.datum
+  expect output_datum_typed: OptionDatum = output_datum
 
   let asset_locked: Int =
     quantity_of(
@@ -365,15 +369,17 @@ fn place_bid_valid(
   stable_policy_id: PolicyId,
   stable_asset_name: AssetName,
 ) {
-  let outputs_to_validator: List<Output> = utils.get_validators_outputs(ctx)
-  expect Some(output_to_validator) = list.at(outputs_to_validator, 0)
-  expect InlineDatum(output_datum) = output_to_validator.datum
-  expect output_datum_typed: OptionDatum = output_datum
-
   expect Spend(my_output_reference) = ctx.purpose
   expect Some(input_from_validator) =
     ctx.transaction.inputs
       |> transaction.find_input(my_output_reference)
+
+  let outputs_to_validator: List<Output> =
+    get_address_output(ctx, input_from_validator.output.address)
+
+  expect Some(output_to_validator) = list.at(outputs_to_validator, 0)
+  expect InlineDatum(output_datum) = output_to_validator.datum
+  expect output_datum_typed: OptionDatum = output_datum
 
   let locked_asset: Int =
     quantity_of(
@@ -450,15 +456,16 @@ fn cancel_bid_valid(
   stable_policy_id: PolicyId,
   stable_asset_name: AssetName,
 ) {
-  let outputs_to_validator: List<Output> = utils.get_validators_outputs(ctx)
-  expect Some(output_to_validator) = list.at(outputs_to_validator, 0)
-  expect InlineDatum(output_datum) = output_to_validator.datum
-  expect output_datum_typed: OptionDatum = output_datum
-
   expect Spend(my_output_reference) = ctx.purpose
   expect Some(input_from_validator) =
     ctx.transaction.inputs
       |> transaction.find_input(my_output_reference)
+
+  let outputs_to_validator: List<Output> =
+    get_address_output(ctx, input_from_validator.output.address)
+  expect Some(output_to_validator) = list.at(outputs_to_validator, 0)
+  expect InlineDatum(output_datum) = output_to_validator.datum
+  expect output_datum_typed: OptionDatum = output_datum
 
   let stable_asset_in_input: Int =
     quantity_of(
@@ -512,15 +519,16 @@ fn accept_bid_valid(
   stable_policy_id: PolicyId,
   stable_asset_name: AssetName,
 ) {
-  let outputs_to_validator: List<Output> = utils.get_validators_outputs(ctx)
-  expect Some(output_to_validator) = list.at(outputs_to_validator, 0)
-  expect InlineDatum(output_datum) = output_to_validator.datum
-  expect output_datum_typed: OptionDatum = output_datum
-
   expect Spend(my_output_reference) = ctx.purpose
   expect Some(input_from_validator) =
     ctx.transaction.inputs
       |> transaction.find_input(my_output_reference)
+
+  let outputs_to_validator: List<Output> =
+    get_address_output(ctx, input_from_validator.output.address)
+  expect Some(output_to_validator) = list.at(outputs_to_validator, 0)
+  expect InlineDatum(output_datum) = output_to_validator.datum
+  expect output_datum_typed: OptionDatum = output_datum
 
   let stable_asset_in_input: Int =
     quantity_of(
