@@ -31,12 +31,4 @@ pub type OptionDatum {
   highest_bidder_address: ByteArray,
   deadline: Int,
   commission: Int,
-  action_code: Int,
 }
-// Action code for off-chain understanding of transaction
-// 0: Create Option
-// 1. Buy Option
-// 2: Change Sell Price
-// 3: Place Bid
-// 4: Cancel Bid
-// 5: Accept Bid
