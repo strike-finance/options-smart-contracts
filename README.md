@@ -62,7 +62,7 @@ pub type OptionDatum {
   commission: Int,
 }
 ```
-Since there is no way to enforce UTxOs being sent to the script address, the Strike Finance platform will simply ignore malicious UTxOs. The `from_asset` field determines what the issuer of the contract locks up in the contract.
+Since there is no way to enforce UTxOs being sent to the script address, the Strike Finance platform will simply ignore malicious UTxOs. The `from_asset` field determines what the issuer of the contract locks up in the contract. A valid option UTxOs will have the amount specified in `from_asset_amount` and the asset specified in `from_asset` locked in the UTxO.
 
 ### Cancel Option
 **Validation Logic:**
