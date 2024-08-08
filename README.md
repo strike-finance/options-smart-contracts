@@ -43,7 +43,7 @@ A stablecoin will always be on at least one side of the exchange. When creating 
 ## Smart Contract Implementation
 
 ### Create Option
-The following fields are in an Option UTxO:
+This is the datum of an option UTxO.
 ```
 pub type OptionDatum {
   issuer_pub_key_hash: AddressHash,
