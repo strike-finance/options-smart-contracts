@@ -1,4 +1,4 @@
-# Project Name
+# Strike Finance Options Smart Contract
 
 ## Table of Contents
 - [Introduction](#introduction)
@@ -115,18 +115,34 @@ The owner of the option contract can accept a bid placed on the option.
 ### Change Sale Price
 **Disclaimer** We are in the process of intergrating Orcafax to dynamically price the option contract based on the price of the underlying asset
 
-The owner of the option contract can change the sale price of the option based on current market condition
+The owner of the option contract can change the sale price of the option based on current market condition. If it was previously off the market, they can put it on the market by setting a sale price.
+**Validations Logic**
+* Signed by the current owner
+* No assets in the UTxO are consumed, the current bid and the assets locked by the issuer
+  
+
+### Hold Option
+The owner of the option contract can take their options contract off the market by setting the `sell_stablecoin_amount` to 0
+
 **Validations Logic**
 * Signed by the current owner
 * No assets in the UTxO are consumed, the current bid and the assets locked by the issuer
 
-### Hold Option
-The owner of the option contract 
-
 ### Exercise Option
-[Details about exercising an option]
+Once the option contract becomes profitable to execute, the owner of the option contract can exercise it.
+
+**Validations Logic**
+* If there currently bids on the options, the bid assets are send back to the bidder
+* The deadline has not past
+* The holder sends the correct amount of assets to the issuer specified in `from_asset` and `from_asset_amount`
+* Signed by the current owner
 
 ## Links
-[Your relevant links here]
+**Website:** https://www.strikefinance.org/options
+**Docs:** https://docs.strikefinance.org/
+**Platform Walkthrough:** https://www.youtube.com/watch?v=qo4NNxbN4ZM&t=2s
 
 ## Future Features
+
+1) If the option is not exercised by the owner by the deadline, the assets the issuer locked up should automatically be returned back to the issuer through a off-chain bot.
+2) The pricing of the options contracts needs to be dynamic and changes as the underlying assets prices changes. 
