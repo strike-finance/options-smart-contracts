@@ -17,12 +17,28 @@
 - [Links](#links)
 
 ## Introduction
-For our v1 of Options this will be a p2p platform. We understand Cardano has a liqudity problem and is currently exploring a pooled options platform. This is an American Options platform, where users will have the rights but not the obligation to exercise their contract. 
+V1 implementation of options trading on Strike Finance will be p2p. We understand Cardano has a liquidity problem and is currently exploring a pooled options alternative. This is an American Options platform, where users will have the right, but not the obligation, to exercise their contracts
 
 ## What Are Options
+An option contract gives the holder the right to buy or sell an asset at a predetermined price before a certain date. In an options contract, there are puts and call options. A put option allows the holder to sell an asset at a specific price and a call option allows the holder to buy an asset at a specific price. Traders will buy put options when they anticipate an asset will decline in value and traders will buy call options when they anticipate an asset rise in value.
 
 ## Technical High-Level Overview
-[Your high level overview content here]
+No assets are minted or burned in any interaction with the contract. Creating an option involves locking UTxOs at the script. Since there's no way to validate the creation of option data in this architecture, the Strike Finance platform will ignore malicious option UTxOs and only show users valid ones. Actions will simply update fields in the data. For example, buying or selling an option will update the current owner field in the data.
+A stablecoin will always be on at least one side of the exchange. When creating an option contract, the issuer must lock up assets in the UTxO. The assets locked in the UTxO determine whether it's a put or call option:
+
+**Call Option:**
+
+* Gives the right to buy assets at a certain price
+* Issuer locks up ADA or other CNTs
+* When exercised, the holder sends stablecoins to the issuer and redeems the locked ADA or CNTs
+
+
+**Put Option:**
+
+* Gives the right to sell ADA or CNTs at a certain price
+* Issuer locks up stablecoins
+* When exercised, the holder sends ADA or CNTs to the issuer and receives stablecoins
+
 
 ## Smart Contract Implementation
 [Your smart contract implementation overview here]
