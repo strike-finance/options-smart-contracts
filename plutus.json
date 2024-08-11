@@ -6,7 +6,7 @@
     "plutusVersion": "v2",
     "compiler": {
       "name": "Aiken",
-      "version": "v1.0.25-alpha+4e8042f"
+      "version": "v1.0.28-alpha+c9a1519"
     },
     "license": "Apache-2.0"
   },
@@ -14,24 +14,232 @@
     {
       "title": "options.spend",
       "datum": {
-        "title": "_datum",
+        "title": "datum",
         "schema": {
-          "$ref": "#/definitions/Int"
+          "$ref": "#/definitions/types~1OptionDatum"
         }
       },
       "redeemer": {
-        "title": "_redeemer",
+        "title": "redeemer",
         "schema": {
-          "$ref": "#/definitions/Int"
+          "$ref": "#/definitions/options~1Redeemer"
         }
       },
-      "compiledCode": "581a01000032232232253330064a229309b2b1bad001375a002ae681",
-      "hash": "cd09bd543496d7b4b1056ab657763d1032f7af4d9cd407d2c8f0832b"
+      "compiledCode": "5905600100003232323232323223232232322533300832323232323232323232323232325333016301400d132323253330193017301a3754002264a6660340082a6660340062002294052819b89375a601660366ea8060ccc020dd59803980d9baa301e301b37540026eb8c044c06cdd51803980d9baa018375c600e60366ea8c01cc06cdd500c0b1804198059bac300a301a3754602060346ea8044dd71806980d1baa017337106eb4c02cc064dd500b18069806180c9baa300f30193754020660066eb0c008c060dd51807180c1baa00f375c600260306ea805454ccc058c0440344c8c8c8c94ccc068c060c06cdd5000899299980d8020a99980d80188008a5014a066e24dd6980f9810181018101810180e1baa0193330093756601060386ea8c07cc070dd50009bae3012301c3754600860386ea8064dd71804180e1baa3004301c37540322c6012660186eb0c02cc06cdd51808980d9baa012375c601c60366ea8060cdc41bad300c301a375402e601c601a60346ea8c040c068dd5008998021bac300330193754601e60326ea8040dd71801180c9baa0162301c301d301d301d001132325333018301630193754002264a66603200620022940cdc49bad300a301a375402e66600e6eacc018c068dd5180e980d1baa001375c602060346ea8c018c068dd500b9bae3006301a3754600c60346ea805c58c01ccc028dd61804980c9baa300f301937540206eb8c030c064dd500b19b88300c300b30183754601c60306ea803cdd69805180c1baa0152301b301c301c301c301c301c301c0012301a301b301b301b301b301b301b301b301b00122323300100100322533301a00114a0264a66603066e3cdd7180e8010020a51133003003001301d0012301830190012223253330153010301637540022900009bad301a3017375400264a66602a6020602c6ea80045300103d87a8000132330010013756603660306ea8008894ccc068004530103d87a8000132323232533301b337220100042a66603666e3c0200084c030cc07cdd4000a5eb80530103d87a8000133006006003375a60380066eb8c068008c078008c070004c8cc004004010894ccc0640045300103d87a8000132323232533301a337220100042a66603466e3c0200084c02ccc078dd3000a5eb80530103d87a8000133006006003375660360066eb8c064008c074008c06c00494ccc0500045300103d87a8000130023301530160014bd701ba5480008c050c054c05400488c8cc00400400c894ccc05000452f5c026464a66602664a666028601e602a6ea80044cdc78031bae3019301637540022940c02cc054dd51805980a9baa00213301700233004004001133004004001301800230160012301230133013301330133013001230113012301230123012301230123012001232533300c3007300d375400226eb4c044c038dd50008b180198069baa3003300d375400260146ea8c004c02cdd5002918070008a4c26caca66600c6008600e6ea80084c8c94ccc02cc0380084c92632533300930070011533300c300b37540042930b0a99980498020008a99980618059baa00214985854ccc024cdc3a40080022a66601860166ea80085261616300937540022c601800260106ea800858dc3a400464a6660086004600a6ea800c4c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c94ccc064c0700084c8c926301400c301300f16375c603400260340046eb8c060004c060008dd7180b000980b0011bad30140013014002375a60240026024004602000260200046eb4c038004c038008c030004c030008dd6980500098031baa0031625333004300230053754002264646464a666016601c0042930b1bae300c001300c002375c6014002600c6ea800458dc3a4000ae6955ceaab9e5573eae815d0aba201",
+      "hash": "6deae250b9ac9b7fc1390f81a1122ebd3d8483cc1e085b71e8874a13"
+    },
+    {
+      "title": "pool.spend",
+      "datum": {
+        "title": "_datum",
+        "schema": {
+          "$ref": "#/definitions/pool~1Datum"
+        }
+      },
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/pool~1Redeemer"
+        }
+      },
+      "parameters": [
+        {
+          "title": "options_validator_hash",
+          "schema": {
+            "$ref": "#/definitions/ByteArray"
+          }
+        }
+      ],
+      "compiledCode": "5905a8010000323232323232322322323232232322533300b32323232323232323232325333016301230173754601660306ea803c4c8c94ccc060c050c064dd5000899299980c99b8748010c068dd500089919191919299980f180d180f9baa00113232533302000515333020002100114a02940c8cc004004c8cc054dd6180798119baa30163023375402e466ebcc05cc090dd5000801180a98111baa301330223754604a60446ea800c894ccc090004528099299981119b89375a602060486ea8024ccc888c94ccc098c078c09cdd50008a400026eb4c0acc0a0dd5000992999813180f18139baa00114c103d87a8000132330010013756605860526ea8008894ccc0ac004530103d87a8000132323232533302c337220100042a66605866e3c0200084c064cc0c0dd4000a5eb80530103d87a8000133006006003375a605a0066eb8c0ac008c0bc008c0b4004c8cc004004010894ccc0a80045300103d87a8000132323232533302b337220100042a66605666e3c0200084c060cc0bcdd3000a5eb80530103d87a8000133006006003375660580066eb8c0a8008c0b8008c0b0004dd5980a98121baa3027002375c602e60486ea8c054c090dd50049bae301530243754602a60486ea80245288998018018009813800980b18070010b19804000a4000601c0246026601600a6012002603c60366ea800458c018c068dd51805980d1baa301d301a37540022c660040029000198051bac300b30183754601660306ea80308c94ccc060c040c064dd5000899b8f016375c603a60346ea80045281806180c9baa300c30193754601460326ea80044c8c94ccc060c050c064dd50008991919299980d99b8748010c070dd5000899191919192999810180c18080050a9998100018a99981000088010a5014a02940cc88c8cc00400400c894ccc098004528099299981219b8f375c605200400829444cc00c00c004c0a4004dd618121812981298129812981298129812981298109baa30143021375402a6eb8c090c094c094c094c094c094c094c084dd500219baf300b330223374a9001198111811981218121812181218121812181218101baa0034bd701981126103d87a80004bd70180998101baa0063015300d004300b0013020301d37540022c601060386ea8008c02c03cc074c068dd50008b19801000a4000660146eb0c010c060dd51805980c1baa00c2325333018301030193754002266e3c058dd7180e980d1baa00114a0601860326ea8c030c064dd50009800800911299980d0010a60103d87a80001323253330193015003130063301d0024bd70099980280280099b8000348004c07800cc070008dd2a400046030603260320024a666024601c60266ea80044c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c94ccc09cc0a80084c8c926302000c301f00f16375c605000260500046eb8c098004c098008dd7181200098120011bad30220013022002375a60400026040004603c002603c0046eb4c070004c070008c068004c068008dd6980c000980a1baa0011630010012253330140011480004cdc02400466004004602e0024660066eb0c010c044dd5180218089baa00125333010300830113754600a60246ea8c014c048dd5180198091baa00114a229408c04cc05000488c8cc00400400c894ccc04c00452f5c026464a666024600a00426602c00466008008002266008008002602e004602a0024602200229309b2b2999804980298051baa00213232533300e3011002132498c94ccc030c02000454ccc03cc038dd50010a4c2c2a66601860080022a66601e601c6ea80085261616300c37540022c601e00260166ea800858dc3a4004a66600c6004600e6ea800c4c8c8c8c94ccc034c0400084c8c9263006002300500316300e001300e002300c001300837540062c4a66600c6004600e6ea80044c8c8c8c94ccc034c04000852616375c601c002601c0046eb8c030004c020dd50008b1b8748000dd7000ab9a5573aaae7955cfaba05742ae89",
+      "hash": "8cbfa07aca477ec682004b843baf4c341d53a9a5810ccf205abd6020"
     }
   ],
   "definitions": {
+    "ByteArray": {
+      "dataType": "bytes"
+    },
     "Int": {
       "dataType": "integer"
+    },
+    "options/Redeemer": {
+      "title": "Redeemer",
+      "anyOf": [
+        {
+          "title": "Redeemer",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "action",
+              "$ref": "#/definitions/options~1RedeemerAction"
+            }
+          ]
+        }
+      ]
+    },
+    "options/RedeemerAction": {
+      "title": "RedeemerAction",
+      "anyOf": [
+        {
+          "title": "SellOption",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": []
+        },
+        {
+          "title": "ExerciseOption",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        },
+        {
+          "title": "SendBackAsset",
+          "dataType": "constructor",
+          "index": 2,
+          "fields": []
+        }
+      ]
+    },
+    "pool/AssetClass": {
+      "title": "AssetClass",
+      "anyOf": [
+        {
+          "title": "AssetClass",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "policy_id",
+              "$ref": "#/definitions/ByteArray"
+            },
+            {
+              "title": "asset_name",
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        }
+      ]
+    },
+    "pool/Datum": {
+      "title": "Datum",
+      "anyOf": [
+        {
+          "title": "Datum",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "from_asset",
+              "$ref": "#/definitions/pool~1AssetClass"
+            },
+            {
+              "title": "to_asset",
+              "$ref": "#/definitions/pool~1AssetClass"
+            }
+          ]
+        }
+      ]
+    },
+    "pool/Redeemer": {
+      "title": "Redeemer",
+      "anyOf": [
+        {
+          "title": "Redeemer",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "action",
+              "$ref": "#/definitions/pool~1RedeemrAction"
+            }
+          ]
+        }
+      ]
+    },
+    "pool/RedeemrAction": {
+      "title": "RedeemrAction",
+      "anyOf": [
+        {
+          "title": "SellOption",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": []
+        },
+        {
+          "title": "BuyOption",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        }
+      ]
+    },
+    "types/AssetClass": {
+      "title": "AssetClass",
+      "anyOf": [
+        {
+          "title": "AssetClass",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "policy_id",
+              "$ref": "#/definitions/ByteArray"
+            },
+            {
+              "title": "asset_name",
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        }
+      ]
+    },
+    "types/OptionDatum": {
+      "title": "OptionDatum",
+      "anyOf": [
+        {
+          "title": "OptionDatum",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "strike_price",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "from_asset",
+              "$ref": "#/definitions/types~1AssetClass"
+            },
+            {
+              "title": "from_asset_amount",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "to_asset",
+              "$ref": "#/definitions/types~1AssetClass"
+            },
+            {
+              "title": "to_asset_amount",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "expiration_date",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "owner_address_hash",
+              "$ref": "#/definitions/ByteArray"
+            },
+            {
+              "title": "pool_script_hash",
+              "$ref": "#/definitions/ByteArray"
+            },
+            {
+              "title": "pool_script_address",
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        }
+      ]
     }
   }
 }
