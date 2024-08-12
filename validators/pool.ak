@@ -1,11 +1,12 @@
 use aiken/list
 use aiken/transaction.{
-  InlineDatum, Input, Output, ScriptContext, find_script_outputs,
+  InlineDatum, Input, Output, ScriptContext, WithdrawFrom, find_script_outputs,
 }
-use aiken/transaction/credential.{Address, from_script}
+use aiken/transaction/credential.{Address,
+  Inline, ScriptCredential, from_script}
 use aiken/transaction/value.{PolicyId, quantity_of}
 use types.{OptionDatum}
-use utils.{get_address_outputs, get_inputs_from_script, get_validators_inputs}
+use utils.{get_address_outputs, get_inputs_from_script}
 
 type RedeemrAction {
   SellOption
@@ -21,13 +22,12 @@ type AssetClass {
   asset_name: ByteArray,
 }
 
-type Datum {
-  from_asset: AssetClass,
-  to_asset: AssetClass,
-}
-
 validator(options_validator_hash: ByteArray) {
-  fn spend(_datum: Datum, redeemer: Redeemer, ctx: ScriptContext) -> Bool {
+  fn withdraw(redeemer: Redeemer, ctx: ScriptContext) -> Bool {
+    expect ScriptContext { transaction: _tx, purpose: WithdrawFrom(stake_cred) } =
+      ctx
+    expect Inline(ScriptCredential(pool_validator_hash)) = stake_cred
+
     when redeemer.action is {
       SellOption -> {
         let inputs_from_options_validator =
@@ -44,7 +44,8 @@ validator(options_validator_hash: ByteArray) {
         let only_one_input_from_options_validator =
           list.length(inputs_from_options_validator) == 1
 
-        let validator_inputs: List<Input> = get_validators_inputs(ctx)
+        let validator_inputs: List<Input> =
+          get_inputs_from_script(ctx.transaction.inputs, pool_validator_hash)
 
         expect Some(validator_input) = list.at(validator_inputs, 0)
 
@@ -74,7 +75,8 @@ validator(options_validator_hash: ByteArray) {
         expect Some(output_to_options_script) =
           list.at(outputs_to_options_script, 0)
 
-        let validator_inputs: List<Input> = get_validators_inputs(ctx)
+        let validator_inputs: List<Input> =
+          get_inputs_from_script(ctx.transaction.inputs, pool_validator_hash)
 
         expect InlineDatum(output_datum) = output_to_options_script.datum
         expect output_datum_typed: OptionDatum = output_datum
