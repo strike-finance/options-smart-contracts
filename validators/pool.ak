@@ -5,7 +5,7 @@ use aiken/transaction.{
 use aiken/transaction/credential.{Address,
   Inline, ScriptCredential, from_script}
 use aiken/transaction/value.{PolicyId, quantity_of}
-use types.{OptionDatum}
+use types.{AddressHash, OptionDatum}
 use utils.{get_address_outputs, get_inputs_from_script}
 
 type RedeemrAction {
@@ -23,7 +23,7 @@ type AssetClass {
   asset_name: ByteArray,
 }
 
-validator(options_validator_hash: ByteArray) {
+validator(options_validator_hash: ByteArray, validated_signature: AddressHash) {
   fn withdraw(redeemer: Redeemer, ctx: ScriptContext) -> Bool {
     expect ScriptContext { transaction: _tx, purpose: WithdrawFrom(stake_cred) } =
       ctx
@@ -65,7 +65,10 @@ validator(options_validator_hash: ByteArray) {
             },
           )
 
-        only_one_input_from_options_validator && from_asset_back_to_validator
+        let signed_by_validated_signature =
+          list.has(ctx.transaction.extra_signatories, validated_signature)
+
+        signed_by_validated_signature && only_one_input_from_options_validator && from_asset_back_to_validator
       }
 
       BuyOption -> {
@@ -91,7 +94,10 @@ validator(options_validator_hash: ByteArray) {
             output_datum_typed.owner_address_hash,
           )
 
-        only_one_output_to_script && must_be_signed_by_owner && pool_address_in_datum_valid
+        let signed_by_validated_signature =
+          list.has(ctx.transaction.extra_signatories, validated_signature)
+
+        signed_by_validated_signature && only_one_output_to_script && must_be_signed_by_owner && pool_address_in_datum_valid
       }
 
       SellNewOption -> {
@@ -109,7 +115,10 @@ validator(options_validator_hash: ByteArray) {
             output_datum_typed.owner_address_hash,
           )
 
-        must_be_signed_by_owner
+        let signed_by_validated_signature =
+          list.has(ctx.transaction.extra_signatories, validated_signature)
+
+        signed_by_validated_signature && must_be_signed_by_owner
       }
     }
   }
