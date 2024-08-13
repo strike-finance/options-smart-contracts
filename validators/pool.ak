@@ -9,9 +9,9 @@ use types.{AddressHash, OptionDatum}
 use utils.{get_address_outputs, get_inputs_from_script}
 
 type RedeemrAction {
+  BuyOption
   SellOption
   SellNewOption
-  BuyOption
 }
 
 type Redeemer {
