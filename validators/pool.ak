@@ -10,6 +10,7 @@ use utils.{get_address_outputs, get_inputs_from_script}
 
 type RedeemrAction {
   SellOption
+  SellNewOption
   BuyOption
 }
 
@@ -49,8 +50,6 @@ validator(options_validator_hash: ByteArray) {
 
         expect Some(validator_input) = list.at(validator_inputs, 0)
 
-        let only_one_validator_input: Bool = list.length(validator_inputs) == 1
-
         let outputs_back_to_validator: List<Output> =
           get_address_outputs(ctx, validator_input.output.address)
 
@@ -66,7 +65,7 @@ validator(options_validator_hash: ByteArray) {
             },
           )
 
-        only_one_input_from_options_validator && only_one_validator_input && from_asset_back_to_validator
+        only_one_input_from_options_validator && from_asset_back_to_validator
       }
 
       BuyOption -> {
@@ -75,13 +74,9 @@ validator(options_validator_hash: ByteArray) {
         expect Some(output_to_options_script) =
           list.at(outputs_to_options_script, 0)
 
-        let validator_inputs: List<Input> =
-          get_inputs_from_script(ctx.transaction.inputs, pool_validator_hash)
-
         expect InlineDatum(output_datum) = output_to_options_script.datum
         expect output_datum_typed: OptionDatum = output_datum
 
-        let only_one_validator_input: Bool = list.length(validator_inputs) == 1
         let only_one_output_to_script: Bool =
           list.length(outputs_to_options_script) == 1
 
@@ -96,7 +91,25 @@ validator(options_validator_hash: ByteArray) {
             output_datum_typed.owner_address_hash,
           )
 
-        only_one_output_to_script && only_one_validator_input && must_be_signed_by_owner && pool_address_in_datum_valid
+        only_one_output_to_script && must_be_signed_by_owner && pool_address_in_datum_valid
+      }
+
+      SellNewOption -> {
+        let outputs_to_options_script: List<Output> =
+          find_script_outputs(ctx.transaction.outputs, options_validator_hash)
+        expect Some(output_to_options_script) =
+          list.at(outputs_to_options_script, 0)
+
+        expect InlineDatum(output_datum) = output_to_options_script.datum
+        expect output_datum_typed: OptionDatum = output_datum
+
+        let must_be_signed_by_owner =
+          list.has(
+            ctx.transaction.extra_signatories,
+            output_datum_typed.owner_address_hash,
+          )
+
+        must_be_signed_by_owner
       }
     }
   }
