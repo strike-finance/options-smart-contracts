@@ -32,7 +32,6 @@ pub type OracleDatum {
 }
 
 pub type OptionDatum {
-  strike_price: Int,
   from_asset: AssetClass,
   from_asset_amount: Int,
   to_asset: AssetClass,
