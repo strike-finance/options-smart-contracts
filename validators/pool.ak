@@ -1,17 +1,18 @@
 use aiken/list
+use aiken/pairs
 use aiken/transaction.{
-  InlineDatum, Input, Output, ScriptContext, WithdrawFrom, find_script_outputs,
+  InlineDatum, Input, Output, ScriptContext, Spend, Transaction, WithdrawFrom,
+  find_script_outputs,
 }
-use aiken/transaction/credential.{Address,
-  Inline, ScriptCredential, from_script}
+use aiken/transaction/credential.{Address, Inline, ScriptCredential}
 use aiken/transaction/value.{PolicyId, quantity_of}
 use types.{AddressHash, OptionDatum}
-use utils.{get_address_outputs, get_inputs_from_script}
+use utils.{get_address_outputs,
+  get_inputs_from_script, resolve_output_reference}
 
 type RedeemrAction {
   BuyOption
   SellOption
-  SellNewOption
 }
 
 type Redeemer {
@@ -24,12 +25,51 @@ type AssetClass {
 }
 
 validator(options_validator_hash: ByteArray, validated_signature: AddressHash) {
+  fn spend(_datum, _redeemer, ctx: ScriptContext) {
+    expect ScriptContext { transaction: tx, purpose: Spend(own_ref) } = ctx
+
+    let Transaction { inputs, withdrawals, .. } = tx
+
+    let Output { address: own_addr, .. } =
+      resolve_output_reference(inputs, own_ref)
+
+    let own_withdrawal = Inline(own_addr.payment_credential)
+
+    pairs.has_key(withdrawals, own_withdrawal)
+  }
+
   fn withdraw(redeemer: Redeemer, ctx: ScriptContext) -> Bool {
     expect ScriptContext { transaction: _tx, purpose: WithdrawFrom(stake_cred) } =
       ctx
     expect Inline(ScriptCredential(pool_validator_hash)) = stake_cred
 
     when redeemer.action is {
+      BuyOption -> {
+        let outputs_to_options_script: List<Output> =
+          find_script_outputs(ctx.transaction.outputs, options_validator_hash)
+        expect Some(output_to_options_script) =
+          list.at(outputs_to_options_script, 0)
+
+        expect InlineDatum(output_datum) = output_to_options_script.datum
+        expect output_datum_typed: OptionDatum = output_datum
+
+        let only_one_output_to_script: Bool =
+          list.length(outputs_to_options_script) == 1
+
+        let pool_address_in_datum_valid =
+          output_datum_typed.pool_script_hash == pool_validator_hash
+
+        let must_be_signed_by_owner =
+          list.has(
+            ctx.transaction.extra_signatories,
+            output_datum_typed.owner_address_hash,
+          )
+
+        let signed_by_validated_signature =
+          list.has(ctx.transaction.extra_signatories, validated_signature)
+
+        signed_by_validated_signature && only_one_output_to_script && must_be_signed_by_owner && pool_address_in_datum_valid
+      }
       SellOption -> {
         let inputs_from_options_validator =
           get_inputs_from_script(ctx.transaction.inputs, options_validator_hash)
@@ -67,58 +107,7 @@ validator(options_validator_hash: ByteArray, validated_signature: AddressHash) {
 
         let signed_by_validated_signature =
           list.has(ctx.transaction.extra_signatories, validated_signature)
-
         signed_by_validated_signature && only_one_input_from_options_validator && from_asset_back_to_validator
-      }
-
-      BuyOption -> {
-        let outputs_to_options_script: List<Output> =
-          find_script_outputs(ctx.transaction.outputs, options_validator_hash)
-        expect Some(output_to_options_script) =
-          list.at(outputs_to_options_script, 0)
-
-        expect InlineDatum(output_datum) = output_to_options_script.datum
-        expect output_datum_typed: OptionDatum = output_datum
-
-        let only_one_output_to_script: Bool =
-          list.length(outputs_to_options_script) == 1
-
-        let pool_address: Address = output_to_options_script.address
-
-        let pool_address_in_datum_valid =
-          from_script(output_datum_typed.pool_script_hash) == pool_address
-
-        let must_be_signed_by_owner =
-          list.has(
-            ctx.transaction.extra_signatories,
-            output_datum_typed.owner_address_hash,
-          )
-
-        let signed_by_validated_signature =
-          list.has(ctx.transaction.extra_signatories, validated_signature)
-
-        signed_by_validated_signature && only_one_output_to_script && must_be_signed_by_owner && pool_address_in_datum_valid
-      }
-
-      SellNewOption -> {
-        let outputs_to_options_script: List<Output> =
-          find_script_outputs(ctx.transaction.outputs, options_validator_hash)
-        expect Some(output_to_options_script) =
-          list.at(outputs_to_options_script, 0)
-
-        expect InlineDatum(output_datum) = output_to_options_script.datum
-        expect output_datum_typed: OptionDatum = output_datum
-
-        let must_be_signed_by_owner =
-          list.has(
-            ctx.transaction.extra_signatories,
-            output_datum_typed.owner_address_hash,
-          )
-
-        let signed_by_validated_signature =
-          list.has(ctx.transaction.extra_signatories, validated_signature)
-
-        signed_by_validated_signature && must_be_signed_by_owner
       }
     }
   }

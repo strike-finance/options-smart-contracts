@@ -41,3 +41,8 @@ pub type OptionDatum {
   pool_script_hash: AddressHash,
   pool_script_address: ByteArray,
 }
+
+pub type PoolDatum {
+  from_asset: AssetClass,
+  from_asset_amount: Int,
+}
