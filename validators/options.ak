@@ -24,7 +24,7 @@ fn validate_sell_option(
     list.has(ctx.transaction.extra_signatories, datum.owner_address_hash)
 
   let has_not_expired =
-    get_lower_bound(ctx.transaction.validity_range) > datum.expiration_date
+    get_lower_bound(ctx.transaction.validity_range) < datum.expiration_date
 
   let outputs_to_pool_script: List<Output> =
     find_script_outputs(ctx.transaction.outputs, datum.pool_script_hash)
@@ -49,16 +49,16 @@ fn validate_exercise_option(
     list.has(ctx.transaction.extra_signatories, datum.owner_address_hash)
 
   let has_not_expired =
-    get_lower_bound(ctx.transaction.validity_range) > datum.expiration_date
+    get_lower_bound(ctx.transaction.validity_range) < datum.expiration_date
 
   let outputs_to_pool_script: List<Output> =
     find_script_outputs(ctx.transaction.outputs, datum.pool_script_hash)
 
-  expect Some(output_to_options_script) = list.head(outputs_to_pool_script)
+  expect Some(output_to_pool_script) = list.head(outputs_to_pool_script)
 
   let to_asset_amount =
     quantity_of(
-      output_to_options_script.value,
+      output_to_pool_script.value,
       datum.to_asset.policy_id,
       datum.to_asset.asset_name,
     )
