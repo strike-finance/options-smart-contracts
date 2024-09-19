@@ -1,13 +1,12 @@
 use aiken/builtin
+use aiken/collection/list
 use aiken/interval.{Finite}
-use aiken/list
-use aiken/transaction.{
-  InlineDatum, Input, Output, OutputReference, ScriptContext, ValidityRange,
+use cardano/address.{Address, Credential, Script, VerificationKey}
+use cardano/assets.{quantity_of}
+use cardano/script_context.{ScriptContext}
+use cardano/transaction.{
+  InlineDatum, Input, Output, OutputReference, Transaction, ValidityRange,
 }
-use aiken/transaction/credential.{
-  Address, Credential, ScriptCredential, VerificationKeyCredential,
-}
-use aiken/transaction/value.{quantity_of}
 use types.{AssetClass, PoolDatum}
 
 pub fn get_validators_inputs(ctx: ScriptContext) -> List<Input> {
@@ -19,7 +18,7 @@ pub fn get_validators_inputs(ctx: ScriptContext) -> List<Input> {
 
 pub fn is_script_credential(credential: Credential) -> Bool {
   when credential is {
-    ScriptCredential(_validator_hash) -> True
+    Script(_validator_hash) -> True
     _ -> False
   }
 }
@@ -32,16 +31,18 @@ pub fn get_inputs_from_script(
     |> list.filter(
         fn(input) {
           when input.output.address.payment_credential is {
-            ScriptCredential(addr_script_hash) ->
-              script_hash == addr_script_hash
-            VerificationKeyCredential(_) -> False
+            Script(addr_script_hash) -> script_hash == addr_script_hash
+            VerificationKey(_) -> False
           }
         },
       )
 }
 
-pub fn get_address_outputs(ctx: ScriptContext, address: Address) -> List<Output> {
-  list.filter(ctx.transaction.outputs, fn(output) { output.address == address })
+pub fn get_address_outputs(
+  transaction: Transaction,
+  address: Address,
+) -> List<Output> {
+  list.filter(transaction.outputs, fn(output) { output.address == address })
 }
 
 pub fn get_lower_bound(range: ValidityRange) -> Int {

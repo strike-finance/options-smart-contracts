@@ -1,6 +1,5 @@
-use aiken/hash.{Blake2b_224, Hash}
-use aiken/transaction/credential.{VerificationKey}
-use aiken/transaction/value.{PolicyId}
+use aiken/crypto.{Blake2b_224, Hash, VerificationKey}
+use cardano/assets.{PolicyId}
 
 type PosixTime =
   Int
@@ -45,4 +44,15 @@ pub type OptionDatum {
 pub type PoolDatum {
   from_asset: AssetClass,
   from_asset_amount: Int,
+}
+
+pub type OptionRedeemer {
+  SellOption
+  ExerciseOption
+  SendBackAsset
+}
+
+pub type WithdrawRedeemer {
+  BuyOption
+  WithdrawSellOption
 }
