@@ -1,6 +1,5 @@
-use aiken/hash.{Blake2b_224, Hash}
-use aiken/transaction/credential.{VerificationKey}
-use aiken/transaction/value.{AssetName, PolicyId}
+use aiken/crypto.{Blake2b_224, Hash, VerificationKey}
+use cardano/assets.{AssetName, PolicyId}
 
 pub type AssetClass {
   policy_id: PolicyId,
@@ -31,4 +30,23 @@ pub type OptionDatum {
   highest_bidder_address: ByteArray,
   deadline: Int,
   commission: Int,
+<<<<<<< HEAD
+=======
+  minted_asset: AssetClass,
+}
+
+pub type Redeemer {
+  BuyOption(Int, Int, Int, Int)
+  ChangeSellPrice(Int, Int)
+  ExerciseOption(Int, Int)
+  CancelOption(Int)
+  PlaceBid(Int, Int)
+  CancelBid(Int)
+  AcceptBid(Int, Int)
+}
+
+pub type MintRedeemer {
+  Mint
+  Burn
+>>>>>>> b9f02af (clean up code)
 }

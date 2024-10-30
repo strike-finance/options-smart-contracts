@@ -1,87 +1,107 @@
-use aiken/list
-use aiken/transaction.{InlineDatum, Input, Output, ScriptContext, Spend}
-use aiken/transaction/credential.{Address, from_verification_key}
-use aiken/transaction/value.{AssetName, PolicyId, quantity_of}
-use types.{LovelaceAmount, OptionDatum}
-use utils.{get_address_outputs, get_asset_to_address}
-
-type LoanRedeemer {
-  BuyOption
-  ChangeSellPrice
-  ExerciseOption
-  CancelOption
-  PlaceBid
-  CancelBid
-  AcceptBid
+use aiken/collection/list
+use cardano/address.{Address, from_verification_key}
+use cardano/assets.{AssetName, PolicyId, Value, flatten, match}
+use cardano/transaction.{InlineDatum, Input, Output, Transaction}
+use types.{
+  AcceptBid, Burn, BuyOption, CancelBid, CancelOption, ChangeSellPrice,
+  ExerciseOption, Mint, MintRedeemer, OptionDatum, PlaceBid, Redeemer,
 }
-
-type Redeemer {
-  action: LoanRedeemer,
-}
+use utils.{get_validators_inputs}
 
 fn buy_option_valid(
   datum: OptionDatum,
-  ctx: ScriptContext,
+  transaction: Transaction,
   stable_policy_id: PolicyId,
   stable_asset_name: AssetName,
+  output_to_script_index: Int,
+  output_to_owner_index: Int,
+  output_to_issuer_index: Int,
+  output_to_bidder_index: Int,
 ) {
-  let is_for_sale: Bool = datum.sell_stablecoin_amount > 0
+  expect Some(output_to_issuer) =
+    list.at(transaction.outputs, output_to_issuer_index)
 
-  let current_owner_address: Address =
-    from_verification_key(datum.current_owner_pub_key_hash)
-  let amount_to_current_owner: Int =
-    get_asset_to_address(
-      ctx.transaction.outputs,
-      current_owner_address,
-      stable_policy_id,
-      stable_asset_name,
-    )
-  let amount_to_current_owner_valid: Bool =
-    amount_to_current_owner >= datum.sell_stablecoin_amount
+  expect Some(output_to_owner) =
+    list.at(transaction.outputs, output_to_owner_index)
 
-  let issuer_address: Address = from_verification_key(datum.issuer_pub_key_hash)
-  let amount_to_issuer: LovelaceAmount =
-    get_asset_to_address(
-      ctx.transaction.outputs,
-      issuer_address,
-      stable_policy_id,
-      stable_asset_name,
-    )
-  let amount_to_issuer_valid: Bool =
-    amount_to_issuer >= datum.sell_stablecoin_amount * datum.commission / 100
+  let issuer_address = from_verification_key(datum.issuer_pub_key_hash)
 
-  expect Spend(my_output_reference) = ctx.purpose
-  expect Some(input_from_validator) =
-    ctx.transaction.inputs
-      |> transaction.find_input(my_output_reference)
+  expect issuer_address == output_to_issuer.address
 
-  let outputs_to_validator: List<Output> =
-    get_address_outputs(ctx, input_from_validator.output.address)
+  let expected_commission_amount: Int =
+    datum.sell_stablecoin_amount * datum.commission / 100
 
-  expect Some(output_to_validator) = list.at(outputs_to_validator, 0)
+  if datum.issuer_pub_key_hash == datum.current_owner_pub_key_hash {
+    let expected_assets_to_issuer =
+      assets.from_asset(
+        stable_policy_id,
+        stable_asset_name,
+        datum.sell_stablecoin_amount,
+      )
+
+    let assets_to_issuer_valid =
+      match(output_to_issuer.value, expected_assets_to_issuer, >=)
+
+    expect assets_to_issuer_valid
+  } else {
+    let expected_assets_to_issuer =
+      assets.from_asset(
+        stable_policy_id,
+        stable_asset_name,
+        expected_commission_amount,
+      )
+
+    let assets_to_issuer_valid =
+      match(output_to_issuer.value, expected_assets_to_issuer, >=)
+
+    let expected_assets_to_owner =
+      assets.from_asset(
+        stable_policy_id,
+        stable_asset_name,
+        datum.sell_stablecoin_amount,
+      )
+
+    let assets_to_owner_valid =
+      match(output_to_owner.value, expected_assets_to_owner, >=)
+
+    let owner_address = from_verification_key(datum.current_owner_pub_key_hash)
+
+    let output_to_owner_address_correct =
+      owner_address == output_to_owner.address
+
+    expect
+      assets_to_issuer_valid && assets_to_owner_valid && output_to_owner_address_correct
+  }
+
+  let all_inputs_from_script = get_validators_inputs(transaction)
+  let only_one_validator_input: Bool = list.length(all_inputs_from_script) == 1
+  expect Some(input_from_validator) = list.head(all_inputs_from_script)
+
+  expect Some(output_to_validator) =
+    list.at(transaction.outputs, output_to_script_index)
   expect InlineDatum(output_datum) = output_to_validator.datum
   expect output_datum_typed: OptionDatum = output_datum
 
-  let asset_locked: Int =
-    quantity_of(
-      input_from_validator.output.value,
+  let expected_assets_locked =
+    assets.from_asset(
       datum.from_asset.policy_id,
       datum.from_asset.asset_name,
+      datum.from_asset_amount,
     )
+      |> assets.add(datum.minted_asset.policy_id, datum.minted_asset.asset_name, 1)
 
-  let asset_send_back: Int =
-    quantity_of(
-      output_to_validator.value,
-      datum.from_asset.policy_id,
-      datum.from_asset.asset_name,
-    )
+  let output_address_valid =
+    output_to_validator.address == input_from_validator.output.address
 
-  let compared_input_datum_info =
+  let assets_locked_valid =
+    match(output_to_validator.value, expected_assets_locked, >=)
+
+  let expected_datum =
     OptionDatum {
       issuer_pub_key_hash: datum.issuer_pub_key_hash,
       issuer_bech32_address: datum.issuer_bech32_address,
-      current_owner_pub_key_hash: "",
-      current_owner_bech32_address: "",
+      current_owner_pub_key_hash: output_datum_typed.current_owner_pub_key_hash,
+      current_owner_bech32_address: output_datum_typed.current_owner_bech32_address,
       from_asset: datum.from_asset,
       from_asset_amount: datum.from_asset_amount,
       to_asset: datum.to_asset,
@@ -90,111 +110,60 @@ fn buy_option_valid(
       highest_bid: 0,
       highest_bidder_pub_key_hash: "",
       highest_bidder_address: "",
-      commission: datum.commission,
       deadline: datum.deadline,
-    }
-
-  let compared_output_datum_info =
-    OptionDatum {
-      issuer_pub_key_hash: datum.issuer_pub_key_hash,
-      issuer_bech32_address: datum.issuer_bech32_address,
-      current_owner_pub_key_hash: "",
-      current_owner_bech32_address: "",
-      from_asset: datum.from_asset,
-      from_asset_amount: asset_send_back,
-      to_asset: datum.to_asset,
-      to_asset_amount: datum.to_asset_amount,
-      sell_stablecoin_amount: 0,
-      highest_bid: 0,
-      highest_bidder_pub_key_hash: "",
-      highest_bidder_address: "",
       commission: datum.commission,
-      deadline: datum.deadline,
+      minted_asset: datum.minted_asset,
     }
-
-  let asset_not_consumed: Bool = asset_send_back >= asset_locked
 
   let deadline_not_passed: Bool =
-    datum.deadline > utils.get_lower_bound(ctx.transaction.validity_range)
+    datum.deadline > utils.get_lower_bound(transaction.validity_range)
 
-  let only_one_validator_input: Bool =
-    list.length(utils.get_validators_inputs(ctx)) == 1
+  let datum_valid: Bool = expected_datum == output_datum_typed
 
-  let only_one_validtaor_output: Bool = list.length(outputs_to_validator) == 1
+  let is_for_sale: Bool = datum.sell_stablecoin_amount > 0
 
-  let datum_valid: Bool =
-    compared_input_datum_info == compared_output_datum_info
+  expect
+    is_for_sale && deadline_not_passed && only_one_validator_input && datum_valid && assets_locked_valid && output_address_valid
 
   let has_bid: Bool = datum.highest_bid > 0
 
-  let output_datum_valid: Bool =
-    output_datum_typed.highest_bid == 0 && output_datum_typed.highest_bidder_pub_key_hash == "" && output_datum_typed.highest_bidder_address == ""
-
-  let default_checks: Bool =
-    is_for_sale && amount_to_current_owner_valid && deadline_not_passed && amount_to_issuer_valid && only_one_validator_input && only_one_validtaor_output && asset_not_consumed && datum_valid && output_datum_valid
-
   if has_bid {
-    let asset_send_back_to_previous_bidder: Int =
-      get_asset_to_address(
-        ctx.transaction.outputs,
-        from_verification_key(datum.highest_bidder_pub_key_hash),
-        stable_policy_id,
-        stable_asset_name,
-      )
+    expect Some(output_to_bidder) =
+      list.at(transaction.outputs, output_to_bidder_index)
 
-    let bid_returned_to_owner: Bool =
-      asset_send_back_to_previous_bidder >= datum.highest_bid
-    default_checks && bid_returned_to_owner
+    let expected_assets_to_bidder =
+      assets.from_asset(stable_policy_id, stable_asset_name, datum.highest_bid)
+
+    let assets_to_bidder_valid =
+      match(output_to_bidder.value, expected_assets_to_bidder, >=)
+
+    assets_to_bidder_valid
   } else {
-    default_checks
+    True
   }
 }
 
 fn change_sell_price_valid(
   datum: OptionDatum,
-  ctx: ScriptContext,
+  transaction: Transaction,
   stable_policy_id: PolicyId,
   stable_asset_name: AssetName,
+  output_to_script_index: Int,
+  output_to_bidder_index: Int,
 ) {
-  expect Spend(my_output_reference) = ctx.purpose
-  expect Some(input_from_validator) =
-    ctx.transaction.inputs
-      |> transaction.find_input(my_output_reference)
+  let all_inputs_from_script = get_validators_inputs(transaction)
+  let only_one_script_input: Bool = list.length(all_inputs_from_script) == 1
+  expect Some(input_from_validator) = list.head(all_inputs_from_script)
 
-  let outputs_to_validator: List<Output> =
-    get_address_outputs(ctx, input_from_validator.output.address)
-
-  expect Some(output_to_validator) = list.at(outputs_to_validator, 0)
-  expect InlineDatum(output_datum) = output_to_validator.datum
+  expect Some(output_back_to_script) =
+    list.at(transaction.outputs, output_to_script_index)
+  expect InlineDatum(output_datum) = output_back_to_script.datum
   expect output_datum_typed: OptionDatum = output_datum
 
-  let asset_locked: Int =
-    quantity_of(
-      input_from_validator.output.value,
-      datum.from_asset.policy_id,
-      datum.from_asset.asset_name,
-    )
+  let output_address_valid: Bool =
+    output_back_to_script.address == input_from_validator.output.address
 
-  let asset_send_back: Int =
-    quantity_of(
-      output_to_validator.value,
-      datum.from_asset.policy_id,
-      datum.from_asset.asset_name,
-    )
-
-  let bid_asset_locked: Int =
-    quantity_of(
-      input_from_validator.output.value,
-      stable_policy_id,
-      stable_asset_name,
-    )
-
-  let bid_asset_send_back: Int =
-    quantity_of(output_to_validator.value, stable_policy_id, stable_asset_name)
-
-  let bid_asset_not_consumed = bid_asset_send_back >= bid_asset_locked
-
-  let input_datum_info =
+  let expected_output_datum =
     OptionDatum {
       issuer_pub_key_hash: datum.issuer_pub_key_hash,
       issuer_bech32_address: datum.issuer_bech32_address,
@@ -204,394 +173,496 @@ fn change_sell_price_valid(
       to_asset_amount: datum.to_asset_amount,
       from_asset: datum.from_asset,
       from_asset_amount: datum.from_asset_amount,
-      sell_stablecoin_amount: 0,
+      sell_stablecoin_amount: output_datum_typed.sell_stablecoin_amount,
       highest_bid: datum.highest_bid,
       highest_bidder_pub_key_hash: datum.highest_bidder_pub_key_hash,
       highest_bidder_address: datum.highest_bidder_address,
-      commission: datum.commission,
       deadline: datum.deadline,
+      commission: datum.commission,
+      minted_asset: datum.minted_asset,
     }
 
-  let output_datum_info =
-    OptionDatum {
-      issuer_pub_key_hash: output_datum_typed.issuer_pub_key_hash,
-      issuer_bech32_address: output_datum_typed.issuer_bech32_address,
-      current_owner_pub_key_hash: output_datum_typed.current_owner_pub_key_hash,
-      current_owner_bech32_address: datum.current_owner_bech32_address,
-      to_asset: output_datum_typed.to_asset,
-      to_asset_amount: output_datum_typed.to_asset_amount,
-      from_asset: output_datum_typed.from_asset,
-      from_asset_amount: output_datum_typed.from_asset_amount,
-      sell_stablecoin_amount: 0,
-      highest_bid: datum.highest_bid,
-      highest_bidder_pub_key_hash: datum.highest_bidder_pub_key_hash,
-      highest_bidder_address: datum.highest_bidder_address,
-      deadline: output_datum_typed.deadline,
-      commission: output_datum_typed.commission,
-    }
-
-  let only_one_validtaor_output: Bool = list.length(outputs_to_validator) == 1
-  let only_one_validator_input: Bool =
-    list.length(utils.get_validators_inputs(ctx)) == 1
+  let output_datum_correct: Bool = expected_output_datum == output_datum_typed
 
   let deadline_not_passed: Bool =
-    utils.get_lower_bound(ctx.transaction.validity_range) < datum.deadline
+    utils.get_lower_bound(transaction.validity_range) < datum.deadline
 
   let must_be_signed_by_owner: Bool =
-    list.has(
-      ctx.transaction.extra_signatories,
-      datum.current_owner_pub_key_hash,
-    )
+    list.has(transaction.extra_signatories, datum.current_owner_pub_key_hash)
 
-  let asset_locked_same: Bool = asset_locked == asset_send_back
+  let expected_assets_sent_back: Value =
+    assets.from_asset(
+      datum.from_asset.policy_id,
+      datum.from_asset.asset_name,
+      datum.from_asset_amount,
+    )
+      |> assets.add(datum.minted_asset.policy_id, datum.minted_asset.asset_name, 1)
+
+  expect
+    output_address_valid && must_be_signed_by_owner && deadline_not_passed && only_one_script_input && output_datum_correct
 
   let hold_option: Bool = output_datum_typed.sell_stablecoin_amount == 0
-  let default_checks: Bool =
-    must_be_signed_by_owner && deadline_not_passed && only_one_validator_input && only_one_validtaor_output && asset_locked_same && input_datum_info == output_datum_info
 
-  if hold_option {
-    let bid_returned_to_owner: Bool =
-      get_asset_to_address(
-        ctx.transaction.outputs,
-        from_verification_key(datum.highest_bidder_pub_key_hash),
-        stable_policy_id,
-        stable_asset_name,
-      ) >= datum.highest_bid
+  if hold_option && datum.highest_bid > 0 {
+    expect Some(output_to_bidder) =
+      list.at(transaction.outputs, output_to_bidder_index)
 
-    bid_returned_to_owner && default_checks
+    let expected_assets_sent_to_bidder =
+      assets.from_asset(stable_policy_id, stable_asset_name, datum.highest_bid)
+
+    let assets_sent_to_bidder_valid =
+      match(output_to_bidder.value, expected_assets_sent_to_bidder, >=)
+
+    let expected_assets_sent_back_valid =
+      match(output_back_to_script.value, expected_assets_sent_back, >=)
+
+    assets_sent_to_bidder_valid && expected_assets_sent_back_valid
+  } else if hold_option {
+    match(output_back_to_script.value, expected_assets_sent_back, >=)
   } else {
     let new_sale_price_larger_than_bid: Bool =
       output_datum_typed.sell_stablecoin_amount >= datum.highest_bid
 
-    bid_asset_not_consumed && new_sale_price_larger_than_bid && default_checks
+    let expected_assets_sent_back_with =
+      assets.add(
+        expected_assets_sent_back,
+        stable_policy_id,
+        stable_asset_name,
+        datum.highest_bid,
+      )
+
+    new_sale_price_larger_than_bid
   }
 }
 
 fn exercise_option_valid(
   datum: OptionDatum,
-  ctx: ScriptContext,
+  transaction: Transaction,
   stable_policy_id: PolicyId,
   stable_asset_name: AssetName,
+  output_to_issuer_index: Int,
+  output_to_bidder_index: Int,
 ) {
   let deadline_not_passed: Bool =
-    utils.get_lower_bound(ctx.transaction.validity_range) < datum.deadline
+    utils.get_lower_bound(transaction.validity_range) < datum.deadline
 
   let only_one_validator_input: Bool =
-    list.length(utils.get_validators_inputs(ctx)) == 1
+    list.length(utils.get_validators_inputs(transaction)) == 1
 
   let issuer_address: Address = from_verification_key(datum.issuer_pub_key_hash)
 
-  let outputs: List<Output> = ctx.transaction.outputs
+  expect Some(output_to_issuer) =
+    list.at(transaction.outputs, output_to_issuer_index)
 
-  expect Some(output_to_address) =
-    list.find(
-      outputs,
-      fn(output) {
-        output.address.payment_credential == issuer_address.payment_credential
-      },
-    )
+  let output_is_to_issuer = issuer_address == output_to_issuer.address
 
-  let to_issuer_addrress_amount_valid: Bool =
-    quantity_of(
-      output_to_address.value,
+  let expected_assets_to_issuer =
+    assets.from_asset(
       datum.to_asset.policy_id,
       datum.to_asset.asset_name,
-    ) >= datum.to_asset_amount
+      datum.to_asset_amount,
+    )
+
+  let assets_to_issuer_valid =
+    match(output_to_issuer.value, expected_assets_to_issuer, >=)
 
   let must_be_signed_by_owner =
-    list.has(
-      ctx.transaction.extra_signatories,
-      datum.current_owner_pub_key_hash,
-    )
+    list.has(transaction.extra_signatories, datum.current_owner_pub_key_hash)
 
   let has_bid: Bool = datum.highest_bid > 0
 
-  let default_checks: Bool =
-    must_be_signed_by_owner && deadline_not_passed && only_one_validator_input && to_issuer_addrress_amount_valid
+  let mint_valid =
+    [(datum.minted_asset.policy_id, datum.minted_asset.asset_name, -1)] == flatten(
+      transaction.mint,
+    )
+
+  expect
+    must_be_signed_by_owner && deadline_not_passed && only_one_validator_input && assets_to_issuer_valid && output_is_to_issuer && mint_valid
 
   if has_bid {
-    let bid_returned_to_owner: Bool =
-      get_asset_to_address(
-        ctx.transaction.outputs,
-        from_verification_key(datum.highest_bidder_pub_key_hash),
-        stable_policy_id,
-        stable_asset_name,
-      ) >= datum.highest_bid
+    expect Some(output_to_bidder) =
+      list.at(transaction.outputs, output_to_bidder_index)
 
-    default_checks && bid_returned_to_owner
+    let bidder_address: Address =
+      from_verification_key(datum.highest_bidder_pub_key_hash)
+
+    let output_to_bidder_address_correct: Bool =
+      bidder_address == output_to_bidder.address
+
+    let expected_assets_to_bidder =
+      assets.from_asset(stable_policy_id, stable_asset_name, datum.highest_bid)
+
+    let assets_to_bidder_valid =
+      match(output_to_bidder.value, expected_assets_to_bidder, >=)
+
+    assets_to_bidder_valid && output_to_bidder_address_correct
   } else {
-    default_checks
+    True
   }
 }
 
-fn cancel_option_valid(
+fn issuer_cancel_option_valid(
   datum: OptionDatum,
-  ctx: ScriptContext,
+  transaction: Transaction,
   stable_policy_id: PolicyId,
   stable_asset_name: AssetName,
+  output_to_bidder_index: Int,
 ) {
   let must_be_signed_by_issuer: Bool =
-    list.has(ctx.transaction.extra_signatories, datum.issuer_pub_key_hash)
+    list.has(transaction.extra_signatories, datum.issuer_pub_key_hash)
 
   let deadline_passed: Bool =
-    utils.get_lower_bound(ctx.transaction.validity_range) > datum.deadline
+    utils.get_lower_bound(transaction.validity_range) > datum.deadline
 
   let issuer_is_current_owner: Bool =
     datum.issuer_pub_key_hash == datum.current_owner_pub_key_hash
 
-  let default_checks: Bool =
-    must_be_signed_by_issuer && ( deadline_passed || issuer_is_current_owner )
+  let mint_valid =
+    [(datum.minted_asset.policy_id, datum.minted_asset.asset_name, -1)] == flatten(
+      transaction.mint,
+    )
+
+  expect
+    must_be_signed_by_issuer && ( deadline_passed || issuer_is_current_owner ) && mint_valid
 
   let has_bid: Bool = datum.highest_bid > 0
 
   if has_bid {
-    let bid_returned_to_owner: Bool =
-      get_asset_to_address(
-        ctx.transaction.outputs,
-        from_verification_key(datum.highest_bidder_pub_key_hash),
-        stable_policy_id,
-        stable_asset_name,
-      ) >= datum.highest_bid
+    expect Some(output_to_bidder) =
+      list.at(transaction.outputs, output_to_bidder_index)
 
-    default_checks && bid_returned_to_owner
+    let expected_assets_to_bidder: Value =
+      assets.from_asset(stable_policy_id, stable_asset_name, datum.highest_bid)
+
+    let bidder_address =
+      from_verification_key(datum.highest_bidder_pub_key_hash)
+
+    let output_to_bidder_address_correct: Bool =
+      bidder_address == output_to_bidder.address
+
+    let assets_to_bidder_valid =
+      match(output_to_bidder.value, expected_assets_to_bidder, >=)
+
+    output_to_bidder_address_correct && assets_to_bidder_valid
   } else {
-    default_checks
+    True
   }
 }
 
 fn place_bid_valid(
   datum: OptionDatum,
-  ctx: ScriptContext,
+  transaction: Transaction,
   stable_policy_id: PolicyId,
   stable_asset_name: AssetName,
+  output_to_script_index: Int,
+  output_to_bidder_index: Int,
 ) {
-  expect Spend(my_output_reference) = ctx.purpose
-  expect Some(input_from_validator) =
-    ctx.transaction.inputs
-      |> transaction.find_input(my_output_reference)
+  let all_inputs_from_script = get_validators_inputs(transaction)
+  let only_one_validator_input: Bool = list.length(all_inputs_from_script) == 1
 
-  let outputs_to_validator: List<Output> =
-    get_address_outputs(ctx, input_from_validator.output.address)
+  expect input_from_validator = list.head(all_inputs_from_script)
 
-  expect Some(output_to_validator) = list.at(outputs_to_validator, 0)
-  expect InlineDatum(output_datum) = output_to_validator.datum
+  expect Some(output_back_to_script) =
+    list.at(transaction.outputs, output_to_script_index)
+  expect InlineDatum(output_datum) = output_back_to_script.datum
   expect output_datum_typed: OptionDatum = output_datum
 
-  let locked_asset: Int =
-    quantity_of(
-      input_from_validator.output.value,
+  let expected_assets_sent_back =
+    assets.from_asset(
       datum.from_asset.policy_id,
       datum.from_asset.asset_name,
+      datum.from_asset_amount,
     )
+      |> assets.add(
+          stable_policy_id,
+          stable_asset_name,
+          output_datum_typed.highest_bid,
+        )
+      |> assets.add(datum.minted_asset.policy_id, datum.minted_asset.asset_name, 1)
 
-  let locked_asset_output: Int =
-    quantity_of(
-      output_to_validator.value,
-      datum.from_asset.policy_id,
-      datum.from_asset.asset_name,
-    )
-
-  let stable_asset_in_input: Int =
-    quantity_of(
-      input_from_validator.output.value,
-      stable_policy_id,
-      stable_asset_name,
-    )
-
-  let stable_asset_in_output: Int =
-    quantity_of(output_to_validator.value, stable_policy_id, stable_asset_name)
-
-  let only_one_validtaor_output: Bool = list.length(outputs_to_validator) == 1
-  let only_one_validator_input: Bool =
-    list.length(utils.get_validators_inputs(ctx)) == 1
+  let assets_sent_back_valid =
+    match(output_back_to_script.value, expected_assets_sent_back, >=)
 
   let deadline_not_passed: Bool =
-    utils.get_lower_bound(ctx.transaction.validity_range) < datum.deadline
-
-  let asset_not_consumed: Bool = locked_asset_output >= locked_asset
+    utils.get_lower_bound(transaction.validity_range) < datum.deadline
 
   let is_for_sale: Bool = datum.sell_stablecoin_amount > 0
 
-  let datum_value_not_corrupted: Bool =
-    datum.issuer_pub_key_hash == output_datum_typed.issuer_pub_key_hash && datum.issuer_bech32_address == output_datum_typed.issuer_bech32_address && datum.current_owner_pub_key_hash == output_datum_typed.current_owner_pub_key_hash && datum.current_owner_bech32_address == output_datum_typed.current_owner_bech32_address && datum.from_asset == output_datum_typed.from_asset && datum.from_asset_amount == output_datum_typed.from_asset_amount && datum.to_asset == output_datum_typed.to_asset && datum.to_asset_amount == output_datum_typed.to_asset_amount && datum.commission == output_datum_typed.commission && datum.deadline == output_datum_typed.deadline
+  let expected_datum =
+    OptionDatum {
+      issuer_pub_key_hash: datum.issuer_pub_key_hash,
+      issuer_bech32_address: datum.issuer_bech32_address,
+      current_owner_pub_key_hash: datum.current_owner_pub_key_hash,
+      current_owner_bech32_address: datum.current_owner_bech32_address,
+      from_asset: datum.from_asset,
+      from_asset_amount: datum.from_asset_amount,
+      to_asset: datum.to_asset,
+      to_asset_amount: datum.to_asset_amount,
+      sell_stablecoin_amount: datum.sell_stablecoin_amount,
+      highest_bid: output_datum_typed.highest_bid,
+      highest_bidder_pub_key_hash: output_datum_typed.highest_bidder_pub_key_hash,
+      highest_bidder_address: output_datum_typed.highest_bidder_address,
+      deadline: datum.deadline,
+      commission: datum.commission,
+      minted_asset: datum.minted_asset,
+    }
 
-  let output_bid_datum_correct: Bool =
-    stable_asset_in_output - output_datum_typed.highest_bid >= stable_asset_in_input - datum.highest_bid
-
-  let output_contains_correct_amount_of_stable_asset: Bool =
-    stable_asset_in_output >= stable_asset_in_input - datum.highest_bid + output_datum_typed.highest_bid
-
-  let default_checks: Bool =
-    asset_not_consumed && is_for_sale && deadline_not_passed && only_one_validator_input && only_one_validtaor_output && output_bid_datum_correct && datum_value_not_corrupted && output_contains_correct_amount_of_stable_asset
+  expect
+    is_for_sale && deadline_not_passed && only_one_validator_input && assets_sent_back_valid && expected_datum == output_datum_typed
 
   let has_bid: Bool = datum.highest_bid > 0
 
   if has_bid {
-    let bid_returned_to_owner: Bool =
-      get_asset_to_address(
-        ctx.transaction.outputs,
-        from_verification_key(datum.highest_bidder_pub_key_hash),
-        stable_policy_id,
-        stable_asset_name,
-      ) >= datum.highest_bid
+    expect Some(output_to_bidder) =
+      list.at(transaction.outputs, output_to_bidder_index)
+
+    let expected_assets_sent_to_bidder =
+      assets.from_asset(stable_policy_id, stable_asset_name, datum.highest_bid)
 
     let bid_higher_than_current: Bool =
       output_datum_typed.highest_bid > datum.highest_bid
 
-    default_checks && bid_higher_than_current && bid_returned_to_owner
+    let assets_to_bidder_valid =
+      match(output_to_bidder.value, expected_assets_sent_to_bidder, >=)
+
+    bid_higher_than_current && assets_to_bidder_valid
   } else {
-    default_checks
+    True
   }
 }
 
 fn cancel_bid_valid(
   datum: OptionDatum,
-  ctx: ScriptContext,
-  stable_policy_id: PolicyId,
-  stable_asset_name: AssetName,
+  transaction: Transaction,
+  output_to_validator_index: Int,
 ) {
-  expect Spend(my_output_reference) = ctx.purpose
-  expect Some(input_from_validator) =
-    ctx.transaction.inputs
-      |> transaction.find_input(my_output_reference)
+  let all_inputs_from_script = get_validators_inputs(transaction)
+  let only_one_validator_input: Bool = list.length(all_inputs_from_script) == 1
+  expect Some(input_from_validator) = list.head(all_inputs_from_script)
 
-  let outputs_to_validator: List<Output> =
-    get_address_outputs(ctx, input_from_validator.output.address)
-  expect Some(output_to_validator) = list.at(outputs_to_validator, 0)
+  expect Some(output_to_validator) =
+    list.at(transaction.outputs, output_to_validator_index)
   expect InlineDatum(output_datum) = output_to_validator.datum
   expect output_datum_typed: OptionDatum = output_datum
 
-  let stable_asset_in_input: Int =
-    quantity_of(
-      input_from_validator.output.value,
-      stable_policy_id,
-      stable_asset_name,
-    )
+  let output_address_valid: Bool =
+    output_to_validator.address == input_from_validator.output.address
 
-  let stable_asset_in_output: Int =
-    quantity_of(output_to_validator.value, stable_policy_id, stable_asset_name)
-
-  let from_asset_in_input: Int =
-    quantity_of(
-      input_from_validator.output.value,
+  let expected_assets_send_back =
+    assets.from_asset(
       datum.from_asset.policy_id,
       datum.from_asset.asset_name,
+      datum.from_asset_amount,
     )
+      |> assets.add(datum.minted_asset.policy_id, datum.minted_asset.asset_name, 1)
 
-  let from_asset_in_output: Int =
-    quantity_of(
-      output_to_validator.value,
-      datum.from_asset.policy_id,
-      datum.from_asset.asset_name,
-    )
+  let assets_send_back_valid =
+    match(output_to_validator.value, expected_assets_send_back, >=)
 
-  let asset_not_consumed: Bool = from_asset_in_output >= from_asset_in_input
-
-  let output_contains_correct_amount_of_stable_asset: Bool =
-    stable_asset_in_input - datum.highest_bid == stable_asset_in_output
+  let expected_datum_value =
+    OptionDatum {
+      issuer_pub_key_hash: datum.issuer_pub_key_hash,
+      issuer_bech32_address: datum.issuer_bech32_address,
+      current_owner_pub_key_hash: datum.current_owner_pub_key_hash,
+      current_owner_bech32_address: datum.current_owner_bech32_address,
+      from_asset: datum.from_asset,
+      from_asset_amount: datum.from_asset_amount,
+      to_asset: datum.to_asset,
+      to_asset_amount: datum.to_asset_amount,
+      sell_stablecoin_amount: datum.sell_stablecoin_amount,
+      highest_bid: 0,
+      highest_bidder_pub_key_hash: "",
+      highest_bidder_address: "",
+      deadline: datum.deadline,
+      commission: datum.commission,
+      minted_asset: datum.minted_asset,
+    }
 
   let datum_value_not_corrupted: Bool =
-    datum.issuer_pub_key_hash == output_datum_typed.issuer_pub_key_hash && datum.issuer_bech32_address == output_datum_typed.issuer_bech32_address && datum.current_owner_pub_key_hash == output_datum_typed.current_owner_pub_key_hash && datum.current_owner_bech32_address == output_datum_typed.current_owner_bech32_address && datum.from_asset == output_datum_typed.from_asset && datum.from_asset_amount == output_datum_typed.from_asset_amount && datum.to_asset == output_datum_typed.to_asset && datum.to_asset_amount == output_datum_typed.to_asset_amount && datum.commission == output_datum_typed.commission && datum.deadline == output_datum_typed.deadline
-
-  let new_bid_valid: Bool =
-    output_datum_typed.highest_bid == 0 && output_datum_typed.highest_bidder_pub_key_hash == "" && output_datum_typed.highest_bidder_address == ""
+    expected_datum_value == output_datum_typed
 
   let signed_by_bidder: Bool =
-    list.has(
-      ctx.transaction.extra_signatories,
-      datum.highest_bidder_pub_key_hash,
-    )
+    list.has(transaction.extra_signatories, datum.highest_bidder_pub_key_hash)
 
-  datum_value_not_corrupted && output_contains_correct_amount_of_stable_asset && new_bid_valid && asset_not_consumed && signed_by_bidder
+  datum_value_not_corrupted && signed_by_bidder && assets_send_back_valid && only_one_validator_input && output_address_valid
 }
 
 fn accept_bid_valid(
   datum: OptionDatum,
-  ctx: ScriptContext,
+  transaction: Transaction,
   stable_policy_id: PolicyId,
   stable_asset_name: AssetName,
+  output_to_issuer_index: Int,
+  output_to_validator_index: Int,
 ) {
-  expect Spend(my_output_reference) = ctx.purpose
-  expect Some(input_from_validator) =
-    ctx.transaction.inputs
-      |> transaction.find_input(my_output_reference)
+  let all_inputs_from_script = get_validators_inputs(transaction)
+  let only_one_validator_input: Bool = list.length(all_inputs_from_script) == 1
 
-  let outputs_to_validator: List<Output> =
-    get_address_outputs(ctx, input_from_validator.output.address)
-  expect Some(output_to_validator) = list.at(outputs_to_validator, 0)
+  expect Some(input_from_validator) = list.head(all_inputs_from_script)
+
+  expect Some(output_to_validator) =
+    list.at(transaction.outputs, output_to_validator_index)
   expect InlineDatum(output_datum) = output_to_validator.datum
   expect output_datum_typed: OptionDatum = output_datum
 
-  let stable_asset_in_input: Int =
-    quantity_of(
-      input_from_validator.output.value,
-      stable_policy_id,
-      stable_asset_name,
-    )
-
-  let stable_asset_in_output: Int =
-    quantity_of(output_to_validator.value, stable_policy_id, stable_asset_name)
+  let output_address_valid: Bool =
+    output_to_validator.address == input_from_validator.output.address
 
   let signed_by_holder: Bool =
-    list.has(
-      ctx.transaction.extra_signatories,
-      datum.current_owner_pub_key_hash,
-    )
+    list.has(transaction.extra_signatories, datum.current_owner_pub_key_hash)
 
-  let from_asset_in_input: Int =
-    quantity_of(
-      input_from_validator.output.value,
+  let expected_datum =
+    OptionDatum {
+      issuer_pub_key_hash: datum.issuer_pub_key_hash,
+      issuer_bech32_address: datum.issuer_bech32_address,
+      current_owner_pub_key_hash: output_datum_typed.current_owner_pub_key_hash,
+      current_owner_bech32_address: output_datum_typed.current_owner_bech32_address,
+      from_asset: datum.from_asset,
+      from_asset_amount: datum.from_asset_amount,
+      to_asset: datum.to_asset,
+      to_asset_amount: datum.to_asset_amount,
+      sell_stablecoin_amount: 0,
+      highest_bid: 0,
+      highest_bidder_pub_key_hash: "",
+      highest_bidder_address: "",
+      deadline: datum.deadline,
+      commission: datum.commission,
+      minted_asset: datum.minted_asset,
+    }
+
+  let datum_value_not_corrupted: Bool = expected_datum == output_datum_typed
+
+  let expected_assets_sent_back =
+    assets.from_asset(
       datum.from_asset.policy_id,
       datum.from_asset.asset_name,
+      datum.from_asset_amount,
+    )
+      |> assets.add(datum.minted_asset.policy_id, datum.minted_asset.asset_name, 1)
+
+  let assets_sent_back_valid: Bool =
+    match(output_to_validator.value, expected_assets_sent_back, >=)
+
+  expect Some(output_to_issuer) =
+    list.at(transaction.outputs, output_to_issuer_index)
+
+  let issuer_address = from_verification_key(datum.issuer_pub_key_hash)
+
+  expect issuer_address == output_to_issuer.address
+
+  let expected_commission_amount: Int =
+    datum.sell_stablecoin_amount * datum.commission / 100
+
+  let expected_assets_to_issuer =
+    assets.from_asset(
+      stable_policy_id,
+      stable_asset_name,
+      expected_commission_amount,
     )
 
-  let from_asset_in_output: Int =
-    quantity_of(
-      output_to_validator.value,
-      datum.from_asset.policy_id,
-      datum.from_asset.asset_name,
-    )
+  let assets_to_issuer_valid =
+    match(output_to_issuer.value, expected_assets_to_issuer, >=)
 
-  let asset_not_consumed: Bool = from_asset_in_output >= from_asset_in_input
-
-  let output_contains_correct_amount_of_stable_asset: Bool =
-    stable_asset_in_output >= stable_asset_in_input - datum.highest_bid
-
-  let datum_value_not_corrupted: Bool =
-    datum.issuer_pub_key_hash == output_datum_typed.issuer_pub_key_hash && datum.issuer_bech32_address == output_datum_typed.issuer_bech32_address && datum.from_asset == output_datum_typed.from_asset && datum.from_asset_amount == output_datum_typed.from_asset_amount && datum.to_asset == output_datum_typed.to_asset && datum.to_asset_amount == output_datum_typed.to_asset_amount && datum.commission == output_datum_typed.commission && datum.deadline == output_datum_typed.deadline
-
-  let new_owner_valid: Bool =
-    output_datum_typed.current_owner_pub_key_hash == datum.highest_bidder_pub_key_hash && output_datum_typed.current_owner_bech32_address == datum.highest_bidder_address
-
-  let new_bid_valid: Bool =
-    output_datum_typed.highest_bid == 0 && output_datum_typed.highest_bidder_pub_key_hash == "" && output_datum_typed.highest_bidder_address == ""
-
-  asset_not_consumed && signed_by_holder && datum_value_not_corrupted && output_contains_correct_amount_of_stable_asset && new_bid_valid && new_owner_valid
+  datum_value_not_corrupted && signed_by_holder && only_one_validator_input && output_address_valid && assets_sent_back_valid && assets_to_issuer_valid
 }
 
-validator(stable_policy_id: PolicyId, stable_asset_name: AssetName) {
-  fn spend(datum: OptionDatum, redeemer: Redeemer, ctx: ScriptContext) -> Bool {
-    when redeemer.action is {
-      BuyOption ->
-        buy_option_valid(datum, ctx, stable_policy_id, stable_asset_name)
+fn mint_valid(transaction: Transaction) {
+  todo
+}
 
-      ChangeSellPrice ->
-        change_sell_price_valid(datum, ctx, stable_policy_id, stable_asset_name)
+fn burn_valid(transaction: Transaction) {
+  todo
+}
 
-      ExerciseOption ->
-        exercise_option_valid(datum, ctx, stable_policy_id, stable_asset_name)
+validator options(stable_policy_id: PolicyId, stable_asset_name: AssetName) {
+  spend(
+    datum: Option<OptionDatum>,
+    redeemer: Redeemer,
+    _: Data,
+    transaction: Transaction,
+  ) {
+    expect Some(datum) = datum
 
-      CancelOption ->
-        cancel_option_valid(datum, ctx, stable_policy_id, stable_asset_name)
+    when redeemer is {
+      BuyOption(
+        output_to_script_index,
+        output_to_owner_index,
+        output_to_issuer_index,
+        output_to_bidder_index,
+      ) ->
+        buy_option_valid(
+          datum,
+          transaction,
+          stable_policy_id,
+          stable_asset_name,
+          output_to_script_index,
+          output_to_owner_index,
+          output_to_issuer_index,
+          output_to_bidder_index,
+        )
 
-      PlaceBid ->
-        place_bid_valid(datum, ctx, stable_policy_id, stable_asset_name)
+      ChangeSellPrice(output_to_script_index, output_to_bidder_index) ->
+        change_sell_price_valid(
+          datum,
+          transaction,
+          stable_policy_id,
+          stable_asset_name,
+          output_to_script_index,
+          output_to_bidder_index,
+        )
 
-      CancelBid ->
-        cancel_bid_valid(datum, ctx, stable_policy_id, stable_asset_name)
+      ExerciseOption(output_to_script_index, output_to_bidder_index) ->
+        exercise_option_valid(
+          datum,
+          transaction,
+          stable_policy_id,
+          stable_asset_name,
+          output_to_script_index,
+          output_to_bidder_index,
+        )
 
-      AcceptBid ->
-        accept_bid_valid(datum, ctx, stable_policy_id, stable_asset_name)
+      CancelOption(output_to_bidder_index) ->
+        issuer_cancel_option_valid(
+          datum,
+          transaction,
+          stable_policy_id,
+          stable_asset_name,
+          output_to_bidder_index,
+        )
+
+      PlaceBid(output_to_script_index, output_to_bidder_index) ->
+        place_bid_valid(
+          datum,
+          transaction,
+          stable_policy_id,
+          stable_asset_name,
+          output_to_script_index,
+          output_to_bidder_index,
+        )
+
+      CancelBid(output_to_script_index) ->
+        cancel_bid_valid(datum, transaction, output_to_script_index)
+
+      AcceptBid(output_to_script_index, output_to_issuer_index) ->
+        accept_bid_valid(
+          datum,
+          transaction,
+          stable_policy_id,
+          stable_asset_name,
+          output_to_script_index,
+          output_to_issuer_index,
+        )
     }
+  }
+
+  mint(rdmr: MintRedeemer, policy_id: PolicyId, transaction: Transaction) {
+    when rdmr is {
+      Mint -> True
+      Burn -> True
+    }
+  }
+
+  else(_) {
+    fail
   }
 }
