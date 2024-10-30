@@ -24,14 +24,13 @@ pub type OptionDatum {
   from_asset_amount: Int,
   to_asset: AssetClass,
   to_asset_amount: Int,
-  sell_stablecoin_amount: Int,
+  stable_asset: AssetClass,
+  sell_stable_asset_amount: Int,
   highest_bid: Int,
   highest_bidder_pub_key_hash: AddressHash,
   highest_bidder_address: ByteArray,
   deadline: Int,
   commission: Int,
-<<<<<<< HEAD
-=======
   minted_asset: AssetClass,
 }
 
@@ -46,7 +45,6 @@ pub type Redeemer {
 }
 
 pub type MintRedeemer {
-  Mint
+  Mint(Int)
   Burn
->>>>>>> b9f02af (clean up code)
 }
