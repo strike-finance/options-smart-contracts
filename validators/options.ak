@@ -217,12 +217,12 @@ fn change_sell_price_valid(
       datum.from_asset_amount,
     )
       |> assets.add(datum.minted_asset.policy_id, datum.minted_asset.asset_name, 1)
-
   let hold_option: Bool = output_datum_typed.sell_stable_asset_amount == 0
+
   let has_bid: Bool = datum.highest_bid > 0
 
   expect
-    output_address_valid && must_be_signed_by_owner && deadline_not_passed && only_one_script_input && output_datum_correct
+    deadline_not_passed && output_datum_correct && output_address_valid && must_be_signed_by_owner && only_one_script_input
 
   // if hold option and there is bid return bid, if hold option and no bid check assets are sent back, if not hold option make sure the new sale price is higher
   // than bid and the bid is returned back to utxo
@@ -244,7 +244,7 @@ fn change_sell_price_valid(
       match(output_back_to_script.value, expected_assets_sent_back, >=)
 
     assets_sent_to_bidder_valid && expected_assets_sent_back_valid
-  } else if hold_option {
+  } else if hold_option && !has_bid {
     match(output_back_to_script.value, expected_assets_sent_back, >=)
   } else {
     let new_sale_price_larger_than_bid: Bool =
@@ -292,9 +292,6 @@ fn exercise_option_valid(
       datum.to_asset_amount,
     )
 
-  let assets_to_issuer_valid =
-    match(output_to_issuer.value, expected_assets_to_issuer, >=)
-
   let must_be_signed_by_owner =
     list.has(transaction.extra_signatories, datum.current_owner_pub_key_hash)
 
@@ -306,9 +303,25 @@ fn exercise_option_valid(
     )
 
   expect
-    must_be_signed_by_owner && deadline_not_passed && only_one_validator_input && assets_to_issuer_valid && output_is_to_issuer && mint_valid
+    must_be_signed_by_owner && deadline_not_passed && only_one_validator_input && output_is_to_issuer && mint_valid
 
-  if has_bid {
+  let bidder_is_issuer: Bool =
+    datum.highest_bidder_pub_key_hash == datum.issuer_pub_key_hash
+
+  if has_bid && bidder_is_issuer {
+    let add_expected_assets_to_issuer =
+      assets.add(
+        expected_assets_to_issuer,
+        datum.stable_asset.policy_id,
+        datum.stable_asset.asset_name,
+        datum.highest_bid,
+      )
+
+    let assets_to_bidder_valid =
+      match(output_to_issuer.value, add_expected_assets_to_issuer, >=)
+
+    assets_to_bidder_valid
+  } else if has_bid && !bidder_is_issuer {
     expect Some(output_to_bidder) =
       list.at(transaction.outputs, output_to_bidder_index)
 
@@ -328,9 +341,12 @@ fn exercise_option_valid(
     let assets_to_bidder_valid =
       match(output_to_bidder.value, expected_assets_to_bidder, >=)
 
-    output_to_bidder_address_correct && assets_to_bidder_valid
+    let assets_to_issuer_valid =
+      match(output_to_issuer.value, expected_assets_to_issuer, >=)
+
+    output_to_bidder_address_correct && assets_to_bidder_valid && assets_to_issuer_valid
   } else {
-    True
+    match(output_to_issuer.value, expected_assets_to_issuer, >=)
   }
 }
 
@@ -538,8 +554,8 @@ fn cancel_bid_valid(
 fn accept_bid_valid(
   datum: OptionDatum,
   transaction: Transaction,
-  output_to_issuer_index: Int,
   output_to_validator_index: Int,
+  output_to_issuer_index: Int,
 ) {
   let all_inputs_from_script = get_validators_inputs(transaction)
   let only_one_validator_input: Bool = list.length(all_inputs_from_script) == 1
@@ -561,8 +577,8 @@ fn accept_bid_valid(
     OptionDatum {
       issuer_pub_key_hash: datum.issuer_pub_key_hash,
       issuer_bech32_address: datum.issuer_bech32_address,
-      current_owner_pub_key_hash: output_datum_typed.current_owner_pub_key_hash,
-      current_owner_bech32_address: output_datum_typed.current_owner_bech32_address,
+      current_owner_pub_key_hash: datum.highest_bidder_pub_key_hash,
+      current_owner_bech32_address: datum.highest_bidder_address,
       from_asset: datum.from_asset,
       from_asset_amount: datum.from_asset_amount,
       to_asset: datum.to_asset,
@@ -590,29 +606,38 @@ fn accept_bid_valid(
   let assets_sent_back_valid: Bool =
     match(output_to_validator.value, expected_assets_sent_back, >=)
 
-  expect Some(output_to_issuer) =
-    list.at(transaction.outputs, output_to_issuer_index)
+  expect
+    datum_value_not_corrupted && signed_by_holder && only_one_validator_input && output_address_valid && assets_sent_back_valid
 
-  expect VerificationKey(issuer_address_hash) =
-    output_to_issuer.address.payment_credential
+  let issuer_is_current_owner: Bool =
+    datum.issuer_pub_key_hash == datum.current_owner_pub_key_hash
 
-  let output_to_issuer_address_correct: Bool =
-    issuer_address_hash == datum.issuer_pub_key_hash
+  if issuer_is_current_owner {
+    True
+  } else {
+    expect Some(output_to_issuer) =
+      list.at(transaction.outputs, output_to_issuer_index)
 
-  let expected_commission_amount: Int =
-    datum.sell_stable_asset_amount * datum.commission / 100
+    expect VerificationKey(issuer_address_hash) =
+      output_to_issuer.address.payment_credential
 
-  let expected_assets_to_issuer =
-    assets.from_asset(
-      datum.stable_asset.policy_id,
-      datum.stable_asset.asset_name,
-      expected_commission_amount,
-    )
+    let output_to_issuer_address_correct: Bool =
+      issuer_address_hash == datum.issuer_pub_key_hash
 
-  let assets_to_issuer_valid =
-    match(output_to_issuer.value, expected_assets_to_issuer, >=)
+    let expected_commission_amount: Int =
+      datum.sell_stable_asset_amount * datum.commission / 100
 
-  datum_value_not_corrupted && signed_by_holder && only_one_validator_input && output_address_valid && assets_sent_back_valid && assets_to_issuer_valid && output_to_issuer_address_correct
+    let expected_assets_to_issuer =
+      assets.from_asset(
+        datum.stable_asset.policy_id,
+        datum.stable_asset.asset_name,
+        expected_commission_amount,
+      )
+    let assets_to_issuer_valid =
+      match(output_to_issuer.value, expected_assets_to_issuer, >=)
+
+    assets_to_issuer_valid && output_to_issuer_address_correct
+  }
 }
 
 fn mint_valid(
