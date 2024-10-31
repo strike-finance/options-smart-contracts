@@ -20,16 +20,22 @@ pub type OptionDatum {
   from_asset_amount: Int,
   to_asset: AssetClass,
   to_asset_amount: Int,
+  stable_asset: AssetClass,
   sell_stable_asset_amount: Int,
   highest_bid: Int,
   highest_bidder_pub_key_hash: AddressHash,
   highest_bidder_address: ByteArray,
   deadline: Int,
   commission: Int,
+  minted_asset: AssetClass,
 }
 ```
 
-Since there is no way to enforce UTxOs being sent to the script address has a valid datum field, the Strike Finance platform will simply ignore malicious UTxOs. The `from_asset` field determines what the issuer of the contract locks up in the contract. A valid option UTxOs will have the amount specified in `from_asset_amount` and the asset specified in `from_asset` locked in the UTxO.
+To create a option, the minting script checks
+
+- The from_asset and the specified amount in the from_asset is valid
+- the deadline has not past
+- the minted asset is sent to the options script
 
 ### Cancel Option
 
