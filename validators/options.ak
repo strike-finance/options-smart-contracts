@@ -1,5 +1,5 @@
 use aiken/collection/list
-use cardano/address.{Address, from_verification_key}
+use cardano/address.{Address, VerificationKey}
 use cardano/assets.{AssetName, PolicyId, Value, flatten, match}
 use cardano/transaction.{InlineDatum, Input, Output, Transaction}
 use types.{
@@ -12,24 +12,20 @@ fn buy_option_valid(
   datum: OptionDatum,
   transaction: Transaction,
   output_to_script_index: Int,
-  output_to_owner_index: Int,
   output_to_issuer_index: Int,
+  output_to_owner_index: Int,
   output_to_bidder_index: Int,
 ) {
-  expect Some(output_to_issuer) =
-    list.at(transaction.outputs, output_to_issuer_index)
-
-  expect Some(output_to_owner) =
-    list.at(transaction.outputs, output_to_owner_index)
-
-  let issuer_address = from_verification_key(datum.issuer_pub_key_hash)
-
-  expect issuer_address == output_to_issuer.address
-
-  let expected_commission_amount: Int =
-    datum.sell_stable_asset_amount * datum.commission / 100
-
   if datum.issuer_pub_key_hash == datum.current_owner_pub_key_hash {
+    expect Some(output_to_issuer) =
+      list.at(transaction.outputs, output_to_issuer_index)
+
+    expect VerificationKey(issuer_address_hash) =
+      output_to_issuer.address.payment_credential
+
+    let output_to_issuer_address_correct: Bool =
+      issuer_address_hash == datum.issuer_pub_key_hash
+
     let expected_assets_to_issuer =
       assets.from_asset(
         datum.stable_asset.policy_id,
@@ -40,8 +36,20 @@ fn buy_option_valid(
     let assets_to_issuer_valid =
       match(output_to_issuer.value, expected_assets_to_issuer, >=)
 
-    expect assets_to_issuer_valid
+    expect output_to_issuer_address_correct && assets_to_issuer_valid
   } else {
+    expect Some(output_to_issuer) =
+      list.at(transaction.outputs, output_to_issuer_index)
+
+    expect VerificationKey(issuer_address_hash) =
+      output_to_issuer.address.payment_credential
+
+    let output_to_issuer_address_correct: Bool =
+      issuer_address_hash == datum.issuer_pub_key_hash
+
+    let expected_commission_amount: Int =
+      datum.sell_stable_asset_amount * datum.commission / 100
+
     let expected_assets_to_issuer =
       assets.from_asset(
         datum.stable_asset.policy_id,
@@ -51,6 +59,9 @@ fn buy_option_valid(
 
     let assets_to_issuer_valid =
       match(output_to_issuer.value, expected_assets_to_issuer, >=)
+
+    expect Some(output_to_owner) =
+      list.at(transaction.outputs, output_to_owner_index)
 
     let expected_assets_to_owner =
       assets.from_asset(
@@ -62,13 +73,14 @@ fn buy_option_valid(
     let assets_to_owner_valid =
       match(output_to_owner.value, expected_assets_to_owner, >=)
 
-    let owner_address = from_verification_key(datum.current_owner_pub_key_hash)
+    expect VerificationKey(owner_address_hash) =
+      output_to_owner.address.payment_credential
 
     let output_to_owner_address_correct =
-      owner_address == output_to_owner.address
+      owner_address_hash == datum.current_owner_pub_key_hash
 
     expect
-      assets_to_issuer_valid && assets_to_owner_valid && output_to_owner_address_correct
+      assets_to_issuer_valid && assets_to_owner_valid && output_to_owner_address_correct && output_to_issuer_address_correct && output_to_owner_address_correct
   }
 
   let all_inputs_from_script = get_validators_inputs(transaction)
@@ -130,6 +142,12 @@ fn buy_option_valid(
     expect Some(output_to_bidder) =
       list.at(transaction.outputs, output_to_bidder_index)
 
+    expect VerificationKey(bidder_address_hash) =
+      output_to_bidder.address.payment_credential
+
+    let output_to_bidder_address_correct: Bool =
+      bidder_address_hash == datum.highest_bidder_pub_key_hash
+
     let expected_assets_to_bidder =
       assets.from_asset(
         datum.stable_asset.policy_id,
@@ -140,7 +158,7 @@ fn buy_option_valid(
     let assets_to_bidder_valid =
       match(output_to_bidder.value, expected_assets_to_bidder, >=)
 
-    assets_to_bidder_valid
+    output_to_bidder_address_correct && assets_to_bidder_valid
   } else {
     True
   }
@@ -200,12 +218,15 @@ fn change_sell_price_valid(
     )
       |> assets.add(datum.minted_asset.policy_id, datum.minted_asset.asset_name, 1)
 
+  let hold_option: Bool = output_datum_typed.sell_stable_asset_amount == 0
+  let has_bid: Bool = datum.highest_bid > 0
+
   expect
     output_address_valid && must_be_signed_by_owner && deadline_not_passed && only_one_script_input && output_datum_correct
 
-  let hold_option: Bool = output_datum_typed.sell_stable_asset_amount == 0
-
-  if hold_option && datum.highest_bid > 0 {
+  // if hold option and there is bid return bid, if hold option and no bid check assets are sent back, if not hold option make sure the new sale price is higher
+  // than bid and the bid is returned back to utxo
+  if hold_option && has_bid {
     expect Some(output_to_bidder) =
       list.at(transaction.outputs, output_to_bidder_index)
 
@@ -256,12 +277,13 @@ fn exercise_option_valid(
   let only_one_validator_input: Bool =
     list.length(utils.get_validators_inputs(transaction)) == 1
 
-  let issuer_address: Address = from_verification_key(datum.issuer_pub_key_hash)
-
   expect Some(output_to_issuer) =
     list.at(transaction.outputs, output_to_issuer_index)
 
-  let output_is_to_issuer = issuer_address == output_to_issuer.address
+  expect VerificationKey(issuer_address_hash) =
+    output_to_issuer.address.payment_credential
+
+  let output_is_to_issuer = issuer_address_hash == datum.issuer_pub_key_hash
 
   let expected_assets_to_issuer =
     assets.from_asset(
@@ -290,11 +312,11 @@ fn exercise_option_valid(
     expect Some(output_to_bidder) =
       list.at(transaction.outputs, output_to_bidder_index)
 
-    let bidder_address: Address =
-      from_verification_key(datum.highest_bidder_pub_key_hash)
+    expect VerificationKey(bidder_address_hash) =
+      output_to_bidder.address.payment_credential
 
     let output_to_bidder_address_correct: Bool =
-      bidder_address == output_to_bidder.address
+      bidder_address_hash == datum.highest_bidder_pub_key_hash
 
     let expected_assets_to_bidder =
       assets.from_asset(
@@ -306,7 +328,7 @@ fn exercise_option_valid(
     let assets_to_bidder_valid =
       match(output_to_bidder.value, expected_assets_to_bidder, >=)
 
-    assets_to_bidder_valid && output_to_bidder_address_correct
+    output_to_bidder_address_correct && assets_to_bidder_valid
   } else {
     True
   }
@@ -347,11 +369,11 @@ fn issuer_cancel_option_valid(
         datum.highest_bid,
       )
 
-    let bidder_address =
-      from_verification_key(datum.highest_bidder_pub_key_hash)
+    expect VerificationKey(bidder_address_hash) =
+      output_to_bidder.address.payment_credential
 
     let output_to_bidder_address_correct: Bool =
-      bidder_address == output_to_bidder.address
+      bidder_address_hash == datum.highest_bidder_pub_key_hash
 
     let assets_to_bidder_valid =
       match(output_to_bidder.value, expected_assets_to_bidder, >=)
@@ -431,6 +453,12 @@ fn place_bid_valid(
     expect Some(output_to_bidder) =
       list.at(transaction.outputs, output_to_bidder_index)
 
+    expect VerificationKey(bidder_address_hash) =
+      output_to_bidder.address.payment_credential
+
+    let output_to_bidder_address_correct: Bool =
+      bidder_address_hash == datum.highest_bidder_pub_key_hash
+
     let expected_assets_sent_to_bidder =
       assets.from_asset(
         datum.stable_asset.policy_id,
@@ -444,7 +472,7 @@ fn place_bid_valid(
     let assets_to_bidder_valid =
       match(output_to_bidder.value, expected_assets_sent_to_bidder, >=)
 
-    bid_higher_than_current && assets_to_bidder_valid
+    bid_higher_than_current && assets_to_bidder_valid && output_to_bidder_address_correct
   } else {
     True
   }
@@ -565,9 +593,11 @@ fn accept_bid_valid(
   expect Some(output_to_issuer) =
     list.at(transaction.outputs, output_to_issuer_index)
 
-  let issuer_address = from_verification_key(datum.issuer_pub_key_hash)
+  expect VerificationKey(issuer_address_hash) =
+    output_to_issuer.address.payment_credential
 
-  expect issuer_address == output_to_issuer.address
+  let output_to_issuer_address_correct: Bool =
+    issuer_address_hash == datum.issuer_pub_key_hash
 
   let expected_commission_amount: Int =
     datum.sell_stable_asset_amount * datum.commission / 100
@@ -582,7 +612,7 @@ fn accept_bid_valid(
   let assets_to_issuer_valid =
     match(output_to_issuer.value, expected_assets_to_issuer, >=)
 
-  datum_value_not_corrupted && signed_by_holder && only_one_validator_input && output_address_valid && assets_sent_back_valid && assets_to_issuer_valid
+  datum_value_not_corrupted && signed_by_holder && only_one_validator_input && output_address_valid && assets_sent_back_valid && assets_to_issuer_valid && output_to_issuer_address_correct
 }
 
 fn mint_valid(
@@ -597,7 +627,6 @@ fn mint_valid(
 
   expect Some(output_to_script) =
     list.at(transaction.outputs, output_to_script_index)
-
   let output_script_hash = get_script_hash(output_to_script.address)
 
   let output_is_to_script: Bool = output_script_hash == policy_id
@@ -612,7 +641,6 @@ fn mint_valid(
           output_datum_typed.from_asset.asset_name,
           output_datum_typed.from_asset_amount,
         )
-
   let assets_locked_valid =
     match(output_to_script.value, expected_assets_locked, >=)
 
@@ -634,8 +662,8 @@ fn burn_valid(
 }
 
 validator options(
-  _underlying_policy_id: PolicyId,
-  _underlying_asset_name: AssetName,
+  _underlying_asset_policy_id: PolicyId,
+  _underlying_asset_asset_name: AssetName,
   stable_policy_id: PolicyId,
   stable_asset_name: AssetName,
   asset_name: AssetName,
@@ -651,16 +679,16 @@ validator options(
     when redeemer is {
       BuyOption(
         output_to_script_index,
-        output_to_owner_index,
         output_to_issuer_index,
+        output_to_owner_index,
         output_to_bidder_index,
       ) ->
         buy_option_valid(
           datum,
           transaction,
           output_to_script_index,
-          output_to_owner_index,
           output_to_issuer_index,
+          output_to_owner_index,
           output_to_bidder_index,
         )
 
