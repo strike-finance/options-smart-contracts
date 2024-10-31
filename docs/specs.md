@@ -91,8 +91,6 @@ The owner of the option contract can accept a bid placed on the option.
 
 ### Change Sale Price
 
-**Disclaimer:** We are in the process of integrating Orcafax to dynamically price the option contract based on the price of the underlying asset.
-
 The owner of the option contract can change the sale price of the option based on current market conditions. If it was previously off the market, they can put it on the market by setting a sale price.
 
 **Validation Logic:**
